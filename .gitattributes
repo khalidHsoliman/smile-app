@@ -1,0 +1,15 @@
+# Normalize all text files to LF in the repository and on checkout.
+# Pinned here rather than relying on core.autocrlf, so the result is the same
+# on every machine and every clone.
+* text=auto eol=lf
+
+# Binary assets -- never touch these.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.task  binary
