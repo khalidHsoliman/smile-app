@@ -115,3 +115,57 @@ body { margin: 0; }
 }
 
 .chart__hint { font-size: 0.75rem; opacity: 0.55; margin: 0; }
+
+/* --- facial analysis --- */
+
+.analysis__bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.analysis__bar button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.analysis__bar button:disabled { opacity: 0.5; cursor: progress; }
+
+.analysis__hint { font-size: 0.75rem; opacity: 0.6; }
+.analysis__error { font-size: 0.75rem; color: #d33; }
+
+.analysis__stage {
+  display: grid;
+  place-items: center;
+  max-height: 70vh;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.analysis__svg { max-width: 100%; max-height: 70vh; touch-action: none; }
+
+.overlay__line { stroke: #35d0ff; fill: none; opacity: 0.9; }
+.overlay__line--midline { stroke: #ffd400; }
+.overlay__line--alar { stroke: #ff7ac6; }
+.overlay__curve { stroke: #6bff8f; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+.overlay__handle {
+  fill: #fff;
+  stroke: #111;
+  stroke-width: 1;
+  cursor: grab;
+  vector-effect: non-scaling-stroke;
+}
+.overlay__handle:hover { fill: #ffd400; }
+.overlay__handle:active { cursor: grabbing; }
+.overlay__handle--lip { fill: #6bff8f; }
+
+.analysis__warning {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, #d38b00 18%, transparent);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.analysis__warning code { font-size: 0.95em; }

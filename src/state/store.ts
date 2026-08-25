@@ -15,6 +15,11 @@ import { STEPS, type Step, stepIndex, stepsAfter } from './steps.js';
 import type { Universal } from '../domain/teeth.js';
 import { IDENTITY, type Matrix2D } from '../domain/geometry.js';
 import { rotateBy, type QuarterTurns } from '../domain/imageOrientation.js';
+import {
+  computeFaceFrame,
+  type FaceFrame,
+  type FacialReferences,
+} from '../domain/faceFrame.js';
 
 /** The five global fine-tune parameters (spec 6.4). */
 export interface FineTuneParams {
@@ -83,6 +88,17 @@ export interface AppState {
   photos: Record<PhotoKind, Photo | null>;
   selectedTeeth: Universal[];
 
+  /**
+   * Facial analysis (spec 5). `refs` is what the user edits; `frame` is derived
+   * from it and never edited directly (spec 9.1).
+   */
+  face: {
+    refs: FacialReferences | null;
+    frame: FaceFrame | null;
+    /** Set when the references are degenerate -- shown next to the handles. */
+    error: string | null;
+  };
+
   design: {
     templateId: string | null;
     params: FineTuneParams;
@@ -107,8 +123,16 @@ export interface AppState {
   setSelectedTeeth(teeth: Universal[]): void;
   setViewTransform(transform: Matrix2D): void;
 
+  /**
+   * Replace the facial references and re-derive the frame. Every reference edit
+   * goes through here, so the frame can never drift from its inputs.
+   */
+  setFacialReferences(refs: FacialReferences | null): void;
+
   /** Re-evaluate whether the upload step's exit condition is met. */
   syncUploadGate(): void;
+  /** Re-evaluate whether the analysis step's exit condition is met. */
+  syncAnalysisGate(): void;
   setTemplate(templateId: string): void;
   setParams(params: Partial<FineTuneParams>): void;
 
@@ -129,7 +153,7 @@ const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
   // consistent with the initial state.
   upload: () => ({ photos: { smile: null, retracted: null }, selectedTeeth: [] }),
   matching: () => ({}),
-  analysis: () => ({}),
+  analysis: () => ({ face: { refs: null, frame: null, error: null } }),
   design: (state) => ({
     design: { ...state.design, templateId: null, params: { ...DEFAULT_PARAMS } },
   }),
@@ -143,6 +167,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   photos: { smile: null, retracted: null },
   selectedTeeth: [],
 
+  face: { refs: null, frame: null, error: null },
   design: { templateId: null, params: { ...DEFAULT_PARAMS } },
   view: { transform: IDENTITY },
 
@@ -204,6 +229,47 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   setViewTransform(transform) {
     set({ view: { transform } });
+  },
+
+  setFacialReferences(refs) {
+    if (refs === null) {
+      set({ face: { refs: null, frame: null, error: null } });
+    } else {
+      // The frame is derived here and nowhere else, so it cannot drift from the
+      // references that produced it (spec 9.1). Degenerate references are
+      // surfaced rather than silently yielding a plausible-but-wrong frame.
+      try {
+        set({ face: { refs, frame: computeFaceFrame(refs), error: null } });
+      } catch (cause) {
+        set({ face: { refs, frame: null, error: (cause as Error).message } });
+      }
+    }
+
+    // Any reference change re-fits the teeth, so everything downstream is stale
+    // (spec 5.4). Invalidate *before* re-gating: invalidateAfter re-locks every
+    // later step, so unlocking first would immediately be undone.
+    get().invalidateAfter('analysis');
+    get().syncAnalysisGate();
+  },
+
+  /**
+   * The analysis step's exit condition: a usable face frame. Authoritative in
+   * both directions, for the same reason `syncUploadGate` is.
+   */
+  syncAnalysisGate() {
+    if (get().face.frame !== null) {
+      get().unlockStep('design');
+      return;
+    }
+
+    set((state) => {
+      const unlocked = new Set(state.unlockedSteps);
+      for (const step of stepsAfter('analysis')) unlocked.delete(step);
+      return {
+        unlockedSteps: unlocked,
+        step: unlocked.has(state.step) ? state.step : 'analysis',
+      };
+    });
   },
 
   /**
