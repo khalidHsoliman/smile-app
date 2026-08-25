@@ -150,6 +150,12 @@ export interface AppState {
    */
   view: { transform: Matrix2D };
 
+  /** Report header fields (spec 8.1). Not design inputs -- purely metadata. */
+  report: {
+    patientName: string;
+    clinicName: string;
+  };
+
   /**
    * True while a slider is being dragged. Undo batching keys off this, and the
    * renderer can use it to skip expensive work mid-drag.
@@ -185,6 +191,7 @@ export interface AppState {
   setLipMask(enabled: boolean): void;
   /** Adopt a sampled palette, or pass null to return to the default. */
   setPalette(palette: ToothPalette | null): void;
+  setReportField(field: 'patientName' | 'clinicName', value: string): void;
   /**
    * Mark the start of a slider drag. Everything until `endParamDrag` is one
    * user action and must collapse into a single undo entry (spec 9.3).
@@ -238,6 +245,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     paletteSampled: false,
   },
   view: { transform: IDENTITY },
+  report: { patientName: '', clinicName: '' },
   paramDragActive: false,
 
   goToStep(step) {
@@ -425,6 +433,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
     // Colour is presentation, not design geometry -- nothing downstream is
     // stale because of it.
+  },
+
+  setReportField(field, value) {
+    set((state) => ({ report: { ...state.report, [field]: value } }));
+    // Metadata only -- it invalidates nothing.
   },
 
   resetParams() {

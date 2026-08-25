@@ -2,6 +2,7 @@ import { StepNav } from './features/StepNav.js';
 import { UploadStep } from './features/upload/UploadStep.js';
 import { AnalysisStep } from './features/analysis/AnalysisStep.js';
 import { DesignStep } from './features/design/DesignStep.js';
+import { ReportStep } from './features/report/ReportStep.js';
 import { useAppStore } from './state/store.js';
 
 /**
@@ -14,7 +15,7 @@ export function App() {
 
   return (
     <div className="app">
-      <header className="app__header">
+      <header className="app__header no-print">
         <h1>Smile Design</h1>
         <StepNav />
       </header>
@@ -22,9 +23,7 @@ export function App() {
         {step === 'upload' && <UploadStep />}
         {step === 'analysis' && <AnalysisStep />}
         {step === 'design' && <DesignStep />}
-        {step !== 'upload' && step !== 'analysis' && step !== 'design' && (
-          <p className="placeholder">Step: {step}</p>
-        )}
+        {step === 'report' && <ReportStep />}
       </main>
     </div>
   );

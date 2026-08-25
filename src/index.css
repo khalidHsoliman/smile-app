@@ -341,3 +341,117 @@ body { margin: 0; }
   border-radius: 0.2rem;
   border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
 }
+
+/* --- report --- */
+
+.step--report { width: min(60rem, 100%); }
+
+.report__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.field { display: grid; gap: 0.2rem; font-size: 0.72rem; }
+.field input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.report__controls button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.report__controls button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 10%, transparent); }
+.report__controls button:disabled { opacity: 0.5; cursor: progress; }
+.report__error { font-size: 0.75rem; color: #d33; }
+
+.report { display: grid; gap: 1.5rem; }
+
+.report__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+.report__header h1 { margin: 0; font-size: 1.15rem; }
+.report__meta { margin: 0.15rem 0 0; font-size: 0.8rem; opacity: 0.7; }
+.report__teeth { margin: 0; font-size: 0.75rem; opacity: 0.7; text-align: right; max-width: 18rem; }
+
+.report__pair h2 { margin: 0 0 0.5rem; font-size: 0.85rem; font-weight: 600; }
+.report__images { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.report__images figure { margin: 0; display: grid; gap: 0.3rem; }
+.report__images img {
+  width: 100%;
+  height: auto;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.report__images figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+.report__images figcaption button {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.65rem;
+  cursor: pointer;
+}
+
+.report__footer {
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+}
+.report__footer p { margin: 0; font-size: 0.7rem; opacity: 0.6; line-height: 1.5; }
+
+/* --- print (spec 8.4): the report IS the PDF --- */
+
+@media print {
+  /*
+   * Force light rendering. A dark-theme screen would otherwise print a black
+   * page, and `print-color-adjust` stops the browser dropping the backgrounds
+   * that separate the images.
+   */
+  :root { color-scheme: light; }
+  body { background: #fff; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .no-print { display: none !important; }
+
+  .app, .app__main, .step { display: block; padding: 0; margin: 0; max-height: none; width: auto; }
+  .step--report { width: auto; }
+
+  .report { gap: 1.1rem; }
+  .report__header { border-bottom-color: #333; }
+  .report__meta, .report__teeth, .report__footer p { opacity: 1; color: #444; }
+
+  /* Keep each before/after pair whole rather than split across a page break. */
+  .report__pair { break-inside: avoid; page-break-inside: avoid; }
+  .report__images img { border: 1px solid #ddd; background: #fff; }
+
+  @page { margin: 14mm; }
+}
