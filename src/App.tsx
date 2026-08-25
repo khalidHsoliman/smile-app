@@ -1,10 +1,11 @@
 import { StepNav } from './features/StepNav.js';
+import { UploadStep } from './features/upload/UploadStep.js';
 import { useAppStore } from './state/store.js';
 
 /**
- * Shell only. Each step's view lands in `features/<step>/` as it is built
- * (spec 14); until then the placeholder names the step so navigation and the
- * cascade rule can be exercised end to end.
+ * Shell. Each step's view lands in `features/<step>/` as it is built (spec 14);
+ * the remaining placeholders name the step so navigation and the cascade rule
+ * can be exercised end to end.
  */
 export function App() {
   const step = useAppStore((s) => s.step);
@@ -16,7 +17,11 @@ export function App() {
         <StepNav />
       </header>
       <main className="app__main">
-        <p className="placeholder">Step: {step}</p>
+        {step === 'upload' ? (
+          <UploadStep />
+        ) : (
+          <p className="placeholder">Step: {step}</p>
+        )}
       </main>
     </div>
   );

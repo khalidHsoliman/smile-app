@@ -38,3 +38,80 @@ body { margin: 0; }
 
 .app__main { flex: 1; display: grid; place-items: center; }
 .placeholder { opacity: 0.5; }
+
+/* --- steps --- */
+
+.app__main { flex: 1; display: grid; place-items: start center; padding: 1.5rem; }
+.step { width: min(72rem, 100%); display: grid; gap: 1.5rem; }
+
+/* --- upload tiles --- */
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem; }
+
+.tile { display: grid; gap: 0.5rem; }
+.tile__header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.tile__header h2 { font-size: 0.875rem; font-weight: 600; margin: 0; }
+
+.tile__actions { display: flex; gap: 0.25rem; }
+.tile__actions button {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.tile__actions button:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
+
+.tile__drop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  padding: 1rem;
+  border: 1px dashed color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  cursor: pointer;
+}
+.tile__drop[data-dragging] { border-color: currentColor; background: color-mix(in srgb, currentColor 8%, transparent); }
+.tile__drop[data-busy] { cursor: progress; opacity: 0.6; }
+
+.tile__image { max-width: 100%; max-height: 100%; object-fit: contain; }
+.tile__placeholder { text-align: center; opacity: 0.55; font-size: 0.875rem; }
+.tile__input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.tile__footer { font-size: 0.75rem; opacity: 0.7; min-height: 1.2em; }
+.tile__error { color: #d33; opacity: 1; }
+.tile__muted { opacity: 0.5; }
+
+/* --- tooth chart --- */
+
+.chart { display: grid; gap: 0.5rem; }
+.chart__arch { display: flex; align-items: center; gap: 0.75rem; }
+.chart__label { width: 3.5rem; font-size: 0.75rem; opacity: 0.7; }
+.chart__row { display: flex; gap: 0.2rem; flex-wrap: wrap; }
+
+.chart__tooth {
+  min-width: 2.1rem;
+  padding: 0.35rem 0.2rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.chart__tooth:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.chart__tooth[aria-pressed='true'] {
+  background: color-mix(in srgb, currentColor 22%, transparent);
+  border-color: currentColor;
+  font-weight: 600;
+}
+
+.chart__hint { font-size: 0.75rem; opacity: 0.55; margin: 0; }

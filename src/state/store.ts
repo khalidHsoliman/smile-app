@@ -13,6 +13,8 @@
 import { create } from 'zustand';
 import { STEPS, type Step, stepIndex, stepsAfter } from './steps.js';
 import type { Universal } from '../domain/teeth.js';
+import { IDENTITY, type Matrix2D } from '../domain/geometry.js';
+import { rotateBy, type QuarterTurns } from '../domain/imageOrientation.js';
 
 /** The five global fine-tune parameters (spec 6.4). */
 export interface FineTuneParams {
@@ -71,7 +73,7 @@ export interface Photo {
   width: number;
   height: number;
   /** Manual rotation in quarter turns, applied on top of EXIF (spec 3.1). */
-  rotation: number;
+  rotation: QuarterTurns;
 }
 
 export interface AppState {
@@ -86,6 +88,12 @@ export interface AppState {
     params: FineTuneParams;
   };
 
+  /**
+   * One pan/zoom transform shared by the photo and every overlay (spec 7.3).
+   * Layers must never transform independently.
+   */
+  view: { transform: Matrix2D };
+
   // --- actions ---
 
   /** Navigate to a step. Ignored if the step is still locked. */
@@ -94,7 +102,13 @@ export interface AppState {
   unlockStep(step: Step): void;
 
   setPhoto(kind: PhotoKind, photo: Photo | null): void;
+  /** Rotate a photo by `delta` quarter turns. Does not re-decode. */
+  rotatePhoto(kind: PhotoKind, delta: number): void;
   setSelectedTeeth(teeth: Universal[]): void;
+  setViewTransform(transform: Matrix2D): void;
+
+  /** Re-evaluate whether the upload step's exit condition is met. */
+  syncUploadGate(): void;
   setTemplate(templateId: string): void;
   setParams(params: Partial<FineTuneParams>): void;
 
@@ -108,6 +122,11 @@ export interface AppState {
 
 /** Per-step reset logic, keyed by the step that owns the state. */
 const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
+  // Upload owns the photos and the tooth selection. `invalidateAfter` only ever
+  // resets steps *after* its argument, so this entry is reached solely by an
+  // explicit `invalidateAfter` from before upload -- which cannot happen, upload
+  // being first. It is kept for completeness of the record and must stay
+  // consistent with the initial state.
   upload: () => ({ photos: { smile: null, retracted: null }, selectedTeeth: [] }),
   matching: () => ({}),
   analysis: () => ({}),
@@ -125,6 +144,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   selectedTeeth: [],
 
   design: { templateId: null, params: { ...DEFAULT_PARAMS } },
+  view: { transform: IDENTITY },
 
   goToStep(step) {
     if (!get().unlockedSteps.has(step)) return;
@@ -159,7 +179,62 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (previous && previous.url !== photo?.url) URL.revokeObjectURL(previous.url);
 
     set((state) => ({ photos: { ...state.photos, [kind]: photo } }));
+
+    // Losing the smile photo invalidates the design surface itself, so the
+    // tooth selection made against it goes too.
+    if (kind === 'smile' && photo === null) set({ selectedTeeth: [] });
+
     get().invalidateAfter('upload');
+    get().syncUploadGate();
+  },
+
+  rotatePhoto(kind, delta) {
+    const photo = get().photos[kind];
+    if (!photo) return;
+
+    set((state) => ({
+      photos: {
+        ...state.photos,
+        [kind]: { ...photo, rotation: rotateBy(photo.rotation, delta) },
+      },
+    }));
+    // Rotation changes the design surface, so everything downstream is stale.
+    get().invalidateAfter('upload');
+  },
+
+  setViewTransform(transform) {
+    set({ view: { transform } });
+  },
+
+  /**
+   * The upload step's exit condition (spec 4.2): a smile photo and at least one
+   * selected tooth. The retracted photo is recommended but the MVP degrades
+   * gracefully without it (spec 3.1), so it is not gated on.
+   *
+   * Authoritative in *both* directions. Unlocking only would let a step stay
+   * reachable after the user removed the photo or cleared the selection that
+   * opened it -- the stale-downstream-state trap of spec 11.1.
+   */
+  syncUploadGate() {
+    const { photos, selectedTeeth } = get();
+    const satisfied = photos.smile !== null && selectedTeeth.length > 0;
+
+    if (satisfied) {
+      get().unlockStep('matching');
+      // Matching is deferred (spec 15): it is a pass-through for now, so
+      // clearing upload also opens facial analysis.
+      get().unlockStep('analysis');
+      return;
+    }
+
+    set((state) => {
+      const unlocked = new Set(state.unlockedSteps);
+      for (const step of stepsAfter('upload')) unlocked.delete(step);
+      return {
+        unlockedSteps: unlocked,
+        step: unlocked.has(state.step) ? state.step : 'upload',
+      };
+    });
   },
 
   setSelectedTeeth(teeth) {
@@ -167,6 +242,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // Tooth selection is owned by upload, but changing it must not discard the
     // photos, so invalidate from `matching` onward (spec 4.1).
     get().invalidateAfter('matching');
+    get().syncUploadGate();
   },
 
   setTemplate(templateId) {
