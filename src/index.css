@@ -330,3 +330,14 @@ body { margin: 0; }
   font-variant-numeric: tabular-nums;
   opacity: 0.75;
 }
+
+/* --- sampled tooth colour --- */
+
+.palette { display: grid; gap: 0.3rem; }
+.palette__swatches { display: flex; gap: 0.25rem; }
+.palette__swatches i {
+  width: 1.6rem;
+  height: 1.1rem;
+  border-radius: 0.2rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+}

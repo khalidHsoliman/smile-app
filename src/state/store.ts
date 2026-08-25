@@ -21,6 +21,7 @@ import {
   type FacialReferences,
 } from '../domain/faceFrame.js';
 import { DEFAULT_TEMPLATE_ID } from '../domain/templates/buildTemplate.js';
+import { DEFAULT_PALETTE, type ToothPalette } from '../vision/sampleToothColor.js';
 
 /**
  * The global fine-tune parameters.
@@ -133,6 +134,14 @@ export interface AppState {
     teethOpacity: number;
     /** Clip the design to the mouth aperture (spec 7.1). */
     lipMask: boolean;
+    /**
+     * Enamel colours. Sampled from the patient's own photo when possible, so
+     * the design sits naturally against their skin and the shot's lighting.
+     * An approximation, never a shade match.
+     */
+    palette: ToothPalette;
+    /** True when `palette` came from the photo rather than the default. */
+    paletteSampled: boolean;
   };
 
   /**
@@ -174,6 +183,8 @@ export interface AppState {
   setParams(params: Partial<FineTuneParams>): void;
   setTeethOpacity(opacity: number): void;
   setLipMask(enabled: boolean): void;
+  /** Adopt a sampled palette, or pass null to return to the default. */
+  setPalette(palette: ToothPalette | null): void;
   /**
    * Mark the start of a slider drag. Everything until `endParamDrag` is one
    * user action and must collapse into a single undo entry (spec 9.3).
@@ -223,6 +234,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
     params: { ...DEFAULT_PARAMS },
     teethOpacity: 0.9,
     lipMask: true,
+    palette: DEFAULT_PALETTE,
+    paletteSampled: false,
   },
   view: { transform: IDENTITY },
   paramDragActive: false,
@@ -400,6 +413,18 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setLipMask(enabled) {
     set((state) => ({ design: { ...state.design, lipMask: enabled } }));
     // A view preference, like opacity -- it invalidates nothing.
+  },
+
+  setPalette(palette) {
+    set((state) => ({
+      design: {
+        ...state.design,
+        palette: palette ?? DEFAULT_PALETTE,
+        paletteSampled: palette !== null,
+      },
+    }));
+    // Colour is presentation, not design geometry -- nothing downstream is
+    // stale because of it.
   },
 
   resetParams() {

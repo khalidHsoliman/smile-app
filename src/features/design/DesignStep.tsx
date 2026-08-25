@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from '../../state/store.js';
 import { orientedSize } from '../../domain/imageOrientation.js';
 import { fitArches } from '../../domain/fitting.js';
 import { getTemplate } from '../../domain/templates/buildTemplate.js';
+import { sampleToothColor } from '../../vision/sampleToothColor.js';
+import { decodeForDetection } from '../../vision/faceLandmarker.js';
 import { TemplatePicker } from './TemplatePicker.js';
 import { ParamSliders } from './ParamSliders.js';
 import { ToothLayer } from './ToothLayer.js';
@@ -27,8 +29,43 @@ export function DesignStep() {
   const setTeethOpacity = useAppStore((s) => s.setTeethOpacity);
   const lipMask = useAppStore((s) => s.design.lipMask);
   const setLipMask = useAppStore((s) => s.setLipMask);
+  const palette = useAppStore((s) => s.design.palette);
+  const paletteSampled = useAppStore((s) => s.design.paletteSampled);
+  const setPalette = useAppStore((s) => s.setPalette);
 
   const template = templateId ? getTemplate(templateId) : undefined;
+
+  /*
+   * Sample the patient's enamel colour once per photo, so the design sits
+   * against their own lighting and skin tone rather than a generic white.
+   * Keyed on the photo URL and re-run if the aperture changes, but never on
+   * every render -- decoding and reading pixels is not free.
+   */
+  const sampledFor = useRef<string | null>(null);
+  const photoUrl = photo?.url ?? null;
+  const aperture = refs?.mouthAperture;
+
+  useEffect(() => {
+    if (!photoUrl || !aperture || aperture.length < 3) return;
+    if (sampledFor.current === photoUrl) return;
+    sampledFor.current = photoUrl;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const image = await decodeForDetection(photoUrl);
+        if (cancelled) return;
+        setPalette(sampleToothColor(image, aperture));
+      } catch {
+        // Sampling is a nicety; the default palette is a fine fallback.
+        if (!cancelled) setPalette(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [photoUrl, aperture, setPalette]);
 
   const fit = useMemo(
     () => (template ? fitArches(selectedTeeth, template, params) : null),
@@ -65,6 +102,7 @@ export function DesignStep() {
                 refs={refs}
                 opacity={teethOpacity}
                 masked={lipMask}
+                palette={palette}
               />
             )}
           </svg>
@@ -104,6 +142,26 @@ export function DesignStep() {
             />
             <span>Clip teeth to the mouth</span>
           </label>
+
+          {/*
+            Sampled colour is an approximation -- camera, lighting and display
+            all shift it -- so it is labelled as one and never presented as a
+            shade match.
+          */}
+          <div className="palette">
+            <span className="slider__name">Tooth colour</span>
+            <span className="palette__swatches" aria-hidden="true">
+              <i style={{ background: palette.cervical }} />
+              <i style={{ background: palette.base }} />
+              <i style={{ background: palette.highlight }} />
+              <i style={{ background: palette.incisal }} />
+            </span>
+            <span className="slider__hint">
+              {paletteSampled
+                ? 'Approximated from this photo. Not a shade match.'
+                : 'Default enamel — no usable sample from this photo.'}
+            </span>
+          </div>
 
           <ParamSliders />
 

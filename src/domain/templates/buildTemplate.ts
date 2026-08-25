@@ -87,6 +87,27 @@ interface TypeProportions {
   incisalRounding: number;
   /** Mesial-distal taper: how much narrower the tooth is at the gum line. */
   cervicalTaper: number;
+  /**
+   * How much rounder the *distal* incisal corner is than the mesial one.
+   *
+   * This is the single strongest cue that a drawn tooth is real. On a natural
+   * central incisor the mesial corner (toward the midline) is nearly a right
+   * angle while the distal corner is visibly rounded, and the asymmetry grows
+   * as you move back along the arch. A perfectly symmetric tooth reads as
+   * manufactured no matter how good its proportions are.
+   */
+  distalRounding: number;
+  /**
+   * Where the crown is widest, as a fraction of its length from the incisal
+   * edge. Natural crowns bulge in the incisal third, not at the edge itself.
+   */
+  bulgeHeight: number;
+  /**
+   * Curvature of the incisal edge itself, in width units. Positive bows the
+   * edge downward at its centre, which is what an unworn central does; a
+   * dead-straight edge reads as a worn or artificial tooth.
+   */
+  incisalBow: number;
 }
 
 /*
@@ -105,6 +126,11 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     zenithDrop: 0.04,
     incisalRounding: 0.16,
     cervicalTaper: 0.12,
+    // Mesial corner nearly square, distal clearly rounded -- the classic
+    // central incisor signature.
+    distalRounding: 2.6,
+    bulgeHeight: 0.36,
+    incisalBow: 0.035,
   },
   // 0.62-0.70 in the spec; 0.66 is mid-range and reads naturally.
   // Gum line: 1.21 - 0.09 = 1.12, about 0.13 more incisal than the central's.
@@ -118,6 +144,10 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     zenithDrop: 0.07,
     incisalRounding: 0.22,
     cervicalTaper: 0.14,
+    // The lateral is rounder overall than the central, and more so distally.
+    distalRounding: 2.2,
+    bulgeHeight: 0.38,
+    incisalBow: 0.05,
   },
   // 0.55-0.62 in the spec. Narrow but long -- its gum line returns to the
   // central's level (1.26 - 0.01 = 1.25) and its tip nearly does too.
@@ -130,6 +160,11 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     // The canine is pointed, not squared off -- its cusp tip is the feature.
     incisalRounding: 0.45,
     cervicalTaper: 0.1,
+    // The cusp tip sits mesial of centre, so the distal slope is the longer
+    // one. This is what stops a canine looking like a symmetric spike.
+    distalRounding: 1.9,
+    bulgeHeight: 0.34,
+    incisalBow: 0,
   },
   premolar: {
     width: 0.52,
@@ -139,6 +174,9 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     zenithDrop: 0.05,
     incisalRounding: 0.3,
     cervicalTaper: 0.08,
+    distalRounding: 1.4,
+    bulgeHeight: 0.4,
+    incisalBow: 0.02,
   },
   molar: {
     width: 0.6,
@@ -148,6 +186,9 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     zenithDrop: 0.05,
     incisalRounding: 0.28,
     cervicalTaper: 0.06,
+    distalRounding: 1.2,
+    bulgeHeight: 0.42,
+    incisalBow: 0.015,
   },
 };
 
@@ -158,12 +199,14 @@ const NATURAL: Record<ToothType, TypeProportions> = {
  */
 const HOLLYWOOD: Record<ToothType, TypeProportions> = {
   // Shorter and wider: width:length rises to 0.88, the squarer cosmetic look.
-  central: { ...NATURAL.central, length: 1.14, incisalRounding: 0.08, cervicalTaper: 0.07 },
-  lateral: { ...NATURAL.lateral, width: 0.72, length: 1.12, incisalOffset: 0.05, incisalRounding: 0.1, cervicalTaper: 0.08 },
+  // The near-symmetric corners and flat incisal edges are the point -- that
+  // deliberate uniformity is exactly what makes the set read as cosmetic.
+  central: { ...NATURAL.central, length: 1.14, incisalRounding: 0.08, cervicalTaper: 0.07, distalRounding: 1.3, incisalBow: 0.012 },
+  lateral: { ...NATURAL.lateral, width: 0.72, length: 1.12, incisalOffset: 0.05, incisalRounding: 0.1, cervicalTaper: 0.08, distalRounding: 1.25, incisalBow: 0.015 },
   // Blunted rather than pointed -- below the isCusp threshold on purpose.
-  canine: { ...NATURAL.canine, width: 0.64, length: 1.15, incisalOffset: 0.0, incisalRounding: 0.28, cervicalTaper: 0.07 },
-  premolar: { ...NATURAL.premolar, width: 0.58, length: 1.08, incisalOffset: 0.09, incisalRounding: 0.18 },
-  molar: { ...NATURAL.molar, width: 0.62, length: 1.05, incisalOffset: 0.15, incisalRounding: 0.2 },
+  canine: { ...NATURAL.canine, width: 0.64, length: 1.15, incisalOffset: 0.0, incisalRounding: 0.28, cervicalTaper: 0.07, distalRounding: 1.2, incisalBow: 0.01 },
+  premolar: { ...NATURAL.premolar, width: 0.58, length: 1.08, incisalOffset: 0.09, incisalRounding: 0.18, distalRounding: 1.15 },
+  molar: { ...NATURAL.molar, width: 0.62, length: 1.05, incisalOffset: 0.15, incisalRounding: 0.2, distalRounding: 1.1 },
 };
 
 /**
@@ -192,46 +235,124 @@ function buildOutline(p: TypeProportions, side: -1 | 1): {
 
   // A high rounding value means a pointed tooth rather than a wide flat edge.
   const isCusp = p.incisalRounding >= 0.4;
-  const flatHalf = isCusp ? 0 : halfWidth * (1 - p.incisalRounding);
-  // How far the incisal corners sit above the lowest point of the edge.
-  const cornerRise = length * (isCusp ? 0.16 : 0.05);
 
+  // `side` is -1 for the patient's right, +1 for their left. Mesial is the edge
+  // facing the midline, distal the one facing away. In local coordinates the
+  // mesial edge is at -x for a patient's-left tooth and +x for a right one.
+  const mesialSign = side === 1 ? -1 : 1;
+
+  // The distal corner is rounder than the mesial one. Splitting a shared
+  // rounding budget between them keeps the tooth's width honest while making
+  // the two corners visibly different.
+  const meanRound = p.incisalRounding;
+  const distalRound = Math.min(0.92, meanRound * p.distalRounding);
+  const mesialRound = Math.max(0.02, meanRound * 2 - distalRound);
+
+  // A cusp meets at a single tip rather than along a flat edge. The tip sits
+  // mesial of centre on a real canine, so the distal slope is the longer of the
+  // two -- that offset is what stops it looking like a symmetric spike.
+  const cuspTipX = isCusp ? mesialSign * halfWidth * 0.16 : 0;
+  const mesialFlat = isCusp ? cuspTipX * mesialSign : halfWidth * (1 - mesialRound);
+  const distalFlat = isCusp ? -cuspTipX * mesialSign : halfWidth * (1 - distalRound);
+
+  // How far each incisal corner rises above the lowest point of the edge. The
+  // rounder corner rises further, which is what makes the rounding read.
+  const mesialRise = length * (isCusp ? 0.15 : 0.035) + halfWidth * mesialRound * 0.16;
+  const distalRise = length * (isCusp ? 0.20 : 0.045) + halfWidth * distalRound * 0.26;
+
+  // The incisal edge bows downward at its centre on an unworn tooth.
+  const bowY = -p.incisalBow * p.width;
+
+  /*
+   * The incisal edge as the fitter sees it: the anchor laid along the smile
+   * curve. Every point sits at y = 0 by contract -- the bow is a shape detail
+   * of the drawn outline, not a displacement of the anchor. Letting the bow
+   * leak in here would tilt the tooth against the smile curve by however much
+   * the edge was bowed.
+   */
   const incisalEdge: Vec2[] = isCusp
-    ? [vec(0, 0)]
-    : [vec(-flatHalf, 0), vec(0, 0), vec(flatHalf, 0)];
+    ? [vec(cuspTipX, 0)]
+    : [
+        vec(mesialSign * mesialFlat, 0),
+        vec(0, 0),
+        vec(-mesialSign * distalFlat, 0),
+      ];
 
-  // The gum line is a smooth convex arc peaking at the zenith. `zenithDrop`
-  // controls how much the shoulders fall away from that peak -- the peak is
-  // the highest point, so the shoulders sit *below* it.
+  // The gum line is a smooth convex arc peaking at the zenith, which sits
+  // distal to the tooth's centre line.
   const zenithX = side * p.zenithOffset * p.width;
   const gingivalZenith = vec(zenithX, length);
   const shoulderY = length - p.zenithDrop * p.width - length * 0.04;
 
-  // Widest point of a natural tooth is in the incisal third, not at the edge.
-  const bulgeY = length * 0.42;
+  // Widest point of the crown, in the incisal third.
+  const bulgeY = length * p.bulgeHeight;
 
-  // A cusp needs its walls to leave the tip steeply. Pulling the control point
-  // up to the corner height makes the two flanks meet at a genuine point; for a
-  // flat-edged tooth the control stays low so the corner merely eases.
-  const shoulderControlY = isCusp ? cornerRise : cornerRise * 0.4;
+  // Signed x helpers, so the path can be written in mesial/distal terms and
+  // come out mirrored correctly for either side.
+  const mx = (v: number) => mesialSign * v;
+  const dx = (v: number) => -mesialSign * v;
 
+  // Cubic control points give the walls an S-curve -- convex at the bulge,
+  // concave as they taper to the gum -- which a single quadratic cannot do.
   const path = [
-    // Start at the distal incisal corner (patient's right side of the tooth).
-    `M ${round(-flatHalf)} 0`,
-    // Up the mesial wall: ease out to the widest point, then taper to the gum.
-    `Q ${round(-halfWidth)} ${round(shoulderControlY)} ${round(-halfWidth)} ${round(bulgeY)}`,
-    `Q ${round(-cervicalHalf)} ${round(length * 0.8)} ${round(zenithX - cervicalHalf * 0.62)} ${round(shoulderY)}`,
-    // Over the gum line: a single arc through the zenith, convex upward.
-    `Q ${round(zenithX)} ${round(length + (length - shoulderY) * 0.55)} ${round(zenithX + cervicalHalf * 0.62)} ${round(shoulderY)}`,
-    // Down the far wall, mirroring the near one.
-    `Q ${round(cervicalHalf)} ${round(length * 0.8)} ${round(halfWidth)} ${round(bulgeY)}`,
-    `Q ${round(halfWidth)} ${round(shoulderControlY)} ${round(flatHalf)} 0`,
-    'Z',
+    `M ${round(mx(mesialFlat))} ${round(0)}`,
+
+    // Mesial wall, incisal corner to widest point. The near control sits low
+    // and close, so the corner turns tightly; a squarer corner has a smaller
+    // mesialRise and turns tighter still. A cusp's mesial slope is shorter and
+    // steeper than its distal one.
+    isCusp
+      ? `C ${round(mx(halfWidth * 0.58))} ${round(mesialRise * 0.62)}` +
+        ` ${round(mx(halfWidth * 0.95))} ${round(bulgeY * 0.40)}` +
+        ` ${round(mx(halfWidth))} ${round(bulgeY)}`
+      : `C ${round(mx(halfWidth * 0.995))} ${round(mesialRise * 0.55)}` +
+        ` ${round(mx(halfWidth))} ${round(bulgeY * 0.45)}` +
+        ` ${round(mx(halfWidth))} ${round(bulgeY)}`,
+
+    // Mesial wall, widest point to the gingival shoulder: a long concave taper.
+    `C ${round(mx(halfWidth))} ${round(bulgeY + (shoulderY - bulgeY) * 0.42)}` +
+      ` ${round(mx(cervicalHalf))} ${round(shoulderY - (shoulderY - bulgeY) * 0.18)}` +
+      ` ${round(zenithX + mx(cervicalHalf * 0.60))} ${round(shoulderY)}`,
+
+    // The gingival arc across the top, peaking at the zenith.
+    `C ${round(zenithX + mx(cervicalHalf * 0.26))} ${round(length)}` +
+      ` ${round(zenithX + dx(cervicalHalf * 0.26))} ${round(length)}` +
+      ` ${round(zenithX + dx(cervicalHalf * 0.60))} ${round(shoulderY)}`,
+
+    // Distal wall, shoulder back down to the widest point.
+    `C ${round(dx(cervicalHalf))} ${round(shoulderY - (shoulderY - bulgeY) * 0.18)}` +
+      ` ${round(dx(halfWidth))} ${round(bulgeY + (shoulderY - bulgeY) * 0.42)}` +
+      ` ${round(dx(halfWidth))} ${round(bulgeY)}`,
+
+    // Distal wall down to the incisal corner. On a flat-edged tooth the rounder
+    // corner needs its controls pulled in, which softens it. On a cusp the wall
+    // must instead run cleanly to the tip -- reusing the corner controls there
+    // hooks the outline back on itself and leaves a notch on the outer flank.
+    isCusp
+      ? `C ${round(dx(halfWidth * 0.92))} ${round(bulgeY * 0.34)}` +
+        ` ${round(dx(halfWidth * 0.52))} ${round(distalRise * 0.60)}` +
+        ` ${round(dx(distalFlat))} ${round(0)}`
+      : `C ${round(dx(halfWidth))} ${round(bulgeY * 0.40)}` +
+        ` ${round(dx(halfWidth * 0.94))} ${round(distalRise * 0.72)}` +
+        ` ${round(dx(distalFlat))} ${round(0)}`,
   ];
 
-  // A flat-edged tooth needs its incisal edge closed off explicitly; a cusp
-  // already meets at a single point.
-  if (!isCusp) path.splice(path.length - 1, 0, `L ${round(-flatHalf)} 0`);
+  if (isCusp) {
+    // Close the cusp: both flanks already end at the tip's x, so this only has
+    // to run the short distal slope back to it. Keeping the control close to
+    // the tip preserves the point instead of rounding it off.
+    path.push(
+      `Q ${round(cuspTipX * 0.4)} ${round(-halfWidth * 0.10)}` +
+        ` ${round(mx(mesialFlat))} ${round(0)}`,
+    );
+  } else {
+    // A gently bowed incisal edge rather than a straight line.
+    path.push(
+      `Q ${round(0)} ${round(bowY * 2)} ${round(mx(mesialFlat))} ${round(0)}`,
+    );
+  }
+
+  path.push('Z');
 
   return { outline: path.join(' '), incisalEdge, gingivalZenith };
 }

@@ -19,14 +19,18 @@
  * size or placement.
  */
 
+import type { ToothPalette } from '../../vision/sampleToothColor.js';
+
 interface ToothShadingProps {
   /** Prefix for the gradient ids, so multiple layers cannot collide. */
   idPrefix: string;
   /** True for the upper arch, whose gum is at the top of the local box. */
   upper: boolean;
+  /** Enamel tones, sampled from the patient's photo where possible. */
+  palette: ToothPalette;
 }
 
-export function ToothShading({ idPrefix, upper }: ToothShadingProps) {
+export function ToothShading({ idPrefix, upper, palette }: ToothShadingProps) {
   // Tooth outlines are authored with +y toward the gum, and the upper arch is
   // flipped vertically at placement -- so in the *rendered* box the gum ends up
   // at the top for uppers and the bottom for lowers.
@@ -46,12 +50,12 @@ export function ToothShading({ idPrefix, upper }: ToothShadingProps) {
         x2="0%"
         y2={incisalStop}
       >
-        <stop offset="0%" stopColor="#e8d9bd" />
-        <stop offset="28%" stopColor="#f4ece0" />
-        <stop offset="72%" stopColor="#faf7f1" />
-        <stop offset="93%" stopColor="#f2f2f0" />
+        <stop offset="0%" stopColor={palette.cervical} />
+        <stop offset="28%" stopColor={palette.base} />
+        <stop offset="72%" stopColor={palette.highlight} stopOpacity="0.55" />
+        <stop offset="93%" stopColor={palette.base} />
         {/* The very edge loses its dentine backing and reads translucent. */}
-        <stop offset="100%" stopColor="#e4e8ea" />
+        <stop offset="100%" stopColor={palette.incisal} />
       </linearGradient>
 
       {/*
@@ -65,10 +69,10 @@ export function ToothShading({ idPrefix, upper }: ToothShadingProps) {
         x2="100%"
         y2="0%"
       >
-        <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
-        <stop offset="34%" stopColor="#ffffff" stopOpacity="0.42" />
-        <stop offset="52%" stopColor="#ffffff" stopOpacity="0.16" />
-        <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        <stop offset="0%" stopColor={palette.highlight} stopOpacity="0" />
+        <stop offset="34%" stopColor={palette.highlight} stopOpacity="0.42" />
+        <stop offset="52%" stopColor={palette.highlight} stopOpacity="0.16" />
+        <stop offset="100%" stopColor={palette.highlight} stopOpacity="0" />
       </linearGradient>
 
       {/*

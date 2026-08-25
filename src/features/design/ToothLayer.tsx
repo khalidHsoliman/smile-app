@@ -12,6 +12,7 @@ import {
 } from '../../domain/geometry.js';
 import { isUpper } from '../../domain/teeth.js';
 import { ToothShading } from './ToothShading.js';
+import type { ToothPalette } from '../../vision/sampleToothColor.js';
 
 interface ToothLayerProps {
   fit: FitResult;
@@ -20,6 +21,8 @@ interface ToothLayerProps {
   opacity: number;
   /** Turn the lip mask off, to check the design against the whole arch. */
   masked?: boolean;
+  /** Enamel tones, sampled from the photo where possible. */
+  palette: ToothPalette;
 }
 
 /**
@@ -42,6 +45,7 @@ export function ToothLayer({
   refs,
   opacity,
   masked = true,
+  palette,
 }: ToothLayerProps) {
   const faceToWorld = useMemo(() => faceToWorldMatrix(frame), [frame]);
   const clipId = useId();
@@ -60,8 +64,8 @@ export function ToothLayer({
       )}
 
       {/* One gradient set per arch: the gum is at opposite ends of the box. */}
-      <ToothShading idPrefix={`${clipId}-upper`} upper />
-      <ToothShading idPrefix={`${clipId}-lower`} upper={false} />
+      <ToothShading idPrefix={`${clipId}-upper`} upper palette={palette} />
+      <ToothShading idPrefix={`${clipId}-lower`} upper={false} palette={palette} />
 
       <g
         className="teeth"
