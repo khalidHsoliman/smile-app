@@ -68,9 +68,11 @@ body { margin: 0; }
 
 .tile__drop {
   position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Clinical photos are shot in portrait far more often than landscape. */
+  aspect-ratio: 3 / 4;
   padding: 1rem;
   border: 1px dashed color-mix(in srgb, currentColor 30%, transparent);
   border-radius: 0.5rem;
@@ -80,7 +82,30 @@ body { margin: 0; }
 .tile__drop[data-dragging] { border-color: currentColor; background: color-mix(in srgb, currentColor 8%, transparent); }
 .tile__drop[data-busy] { cursor: progress; opacity: 0.6; }
 
-.tile__image { max-width: 100%; max-height: 100%; object-fit: contain; }
+/*
+ * min-height:0 lets the flex item shrink below its intrinsic height -- without
+ * it a tall photo stretches the box and max-height never bites, so the image
+ * overflows and is clipped. Sizing by both axes keeps the whole face visible
+ * whatever the photo's aspect ratio.
+ */
+.tile__image {
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+/*
+ * A quarter turn rotates the painted pixels but not the layout box, so a
+ * rotated photo would overflow the tile. Swapping which axis each dimension is
+ * measured against -- via an explicit square bound -- keeps it inside the box
+ * whichever way it turns. 75% is the 3:4 box's width as a share of its height.
+ */
+.tile__image[data-quarter-turned] {
+  max-width: 75%;
+  max-height: 75%;
+}
+
 .tile__placeholder { text-align: center; opacity: 0.55; font-size: 0.875rem; }
 .tile__input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 

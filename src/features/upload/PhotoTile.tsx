@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import { useAppStore, type PhotoKind } from '../../state/store.js';
-import { orientedSize } from '../../domain/imageOrientation.js';
+import { orientedSize, swapsAxes } from '../../domain/imageOrientation.js';
 import { ACCEPTED_TYPES, PhotoLoadError, loadPhoto } from './loadPhoto.js';
 
 interface PhotoTileProps {
@@ -85,6 +85,7 @@ export function PhotoTile({ kind, title, hint }: PhotoTileProps) {
         {photo ? (
           <img
             className="tile__image"
+            data-quarter-turned={swapsAxes(photo.rotation) || undefined}
             src={photo.url}
             alt={title}
             style={{ transform: `rotate(${photo.rotation * 90}deg)` }}
