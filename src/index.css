@@ -229,3 +229,68 @@ body { margin: 0; }
 
 .template__name { font-size: 0.85rem; font-weight: 600; }
 .template__description { font-size: 0.75rem; opacity: 0.6; line-height: 1.4; }
+
+/* --- design step --- */
+
+.step--design { width: min(80rem, 100%); }
+
+.design { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: 1.25rem; align-items: start; }
+@media (max-width: 60rem) { .design { grid-template-columns: 1fr; } }
+
+.design__stage {
+  display: grid;
+  place-items: center;
+  max-height: 74vh;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.design__svg { max-width: 100%; max-height: 74vh; }
+
+.design__panel { display: grid; gap: 1rem; }
+
+.tooth {
+  fill: #f7f4ec;
+  stroke: #8d8272;
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+.tooth[data-auxiliary] { display: none; }
+
+/* --- sliders --- */
+
+.sliders { display: grid; gap: 0.75rem; }
+.sliders__header { display: flex; align-items: center; justify-content: space-between; }
+.sliders__reset {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.sliders__reset:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+
+.slider, .opacity {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'name value' 'input input' 'hint hint';
+  gap: 0.15rem 0.5rem;
+  align-items: center;
+}
+.slider__name { grid-area: name; font-size: 0.78rem; font-weight: 500; }
+.slider__value {
+  grid-area: value;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+}
+.slider input, .opacity input { grid-area: input; width: 100%; accent-color: currentColor; }
+.slider__hint { grid-area: hint; font-size: 0.68rem; opacity: 0.45; line-height: 1.35; }
+
+.opacity {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}

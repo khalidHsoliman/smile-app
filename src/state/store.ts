@@ -103,6 +103,12 @@ export interface AppState {
   design: {
     templateId: string | null;
     params: FineTuneParams;
+    /**
+     * Opacity of the tooth layer. A first-class control, not a buried one:
+     * toggling it to compare against the original was the previous product's
+     * most-used control (spec 7.1).
+     */
+    teethOpacity: number;
   };
 
   /**
@@ -110,6 +116,12 @@ export interface AppState {
    * Layers must never transform independently.
    */
   view: { transform: Matrix2D };
+
+  /**
+   * True while a slider is being dragged. Undo batching keys off this, and the
+   * renderer can use it to skip expensive work mid-drag.
+   */
+  paramDragActive: boolean;
 
   // --- actions ---
 
@@ -136,6 +148,15 @@ export interface AppState {
   syncAnalysisGate(): void;
   setTemplate(templateId: string): void;
   setParams(params: Partial<FineTuneParams>): void;
+  setTeethOpacity(opacity: number): void;
+  /**
+   * Mark the start of a slider drag. Everything until `endParamDrag` is one
+   * user action and must collapse into a single undo entry (spec 9.3).
+   */
+  beginParamDrag(): void;
+  endParamDrag(): void;
+  /** Return the five parameters to their defaults. */
+  resetParams(): void;
 
   /**
    * Reset every step strictly after `from` and re-lock navigation to them.
@@ -173,8 +194,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   selectedTeeth: [],
 
   face: { refs: null, frame: null, error: null },
-  design: { templateId: DEFAULT_TEMPLATE_ID, params: { ...DEFAULT_PARAMS } },
+  design: {
+    templateId: DEFAULT_TEMPLATE_ID,
+    params: { ...DEFAULT_PARAMS },
+    teethOpacity: 0.9,
+  },
   view: { transform: IDENTITY },
+  paramDragActive: false,
 
   goToStep(step) {
     if (!get().unlockedSteps.has(step)) return;
@@ -264,6 +290,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
   syncAnalysisGate() {
     if (get().face.frame !== null) {
       get().unlockStep('design');
+      // A design exists the moment the frame does -- the default template and
+      // parameters already produce a fit -- so the report is reachable too.
+      get().unlockStep('report');
       return;
     }
 
@@ -324,6 +353,30 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setParams(params) {
     set((state) => ({
       design: { ...state.design, params: clampParams({ ...state.design.params, ...params }) },
+    }));
+    get().invalidateAfter('design');
+  },
+
+  beginParamDrag() {
+    // The drag is already open if the pointer went down and a key repeat
+    // follows, so this is idempotent on purpose.
+    if (!get().paramDragActive) set({ paramDragActive: true });
+  },
+
+  endParamDrag() {
+    if (get().paramDragActive) set({ paramDragActive: false });
+  },
+
+  setTeethOpacity(opacity) {
+    set((state) => ({
+      design: { ...state.design, teethOpacity: Math.min(1, Math.max(0, opacity)) },
+    }));
+    // Opacity is a view preference, not design input -- it invalidates nothing.
+  },
+
+  resetParams() {
+    set((state) => ({
+      design: { ...state.design, params: { ...DEFAULT_PARAMS } },
     }));
     get().invalidateAfter('design');
   },
