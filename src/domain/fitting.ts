@@ -15,13 +15,53 @@ import { resolveArchRuns } from './archRun.js';
 import { centralsOf, isUpper, type Arch, type Universal } from './teeth.js';
 import type { Template, ToothTemplate } from './templates/types.js';
 
-/** The five global fine-tune parameters (spec 6.4). */
+/**
+ * The global fine-tune parameters.
+ *
+ * Spec 6.4 lists five, inherited from the previous desktop product. Three are
+ * kept as-is, one is renamed, one is replaced, and one is added -- each change
+ * is justified where the parameter is used, and against how the field's own
+ * tools name things.
+ */
 export interface FitParams {
+  /** Width:length of the central incisor. Clinical target 0.80. */
   ratio: number;
+  /** Overall size of the arch against the face. */
   scale: number;
-  curveOfSpee: number;
+  /**
+   * Curvature of the incisal edge line, following the lower lip.
+   *
+   * Named `smileCurve`, not "curve of Spee". The curve of Spee is the
+   * antero-posterior curve of the occlusal plane, visible only in lateral view;
+   * this application is frontal-only, and what is seen and adjusted here is the
+   * smile curve. Every 2D tool in the field names it that way, and the old
+   * label reads as a category error on a frontal tool.
+   */
+  smileCurve: number;
+  /** Vertical offset of the arch against the lip line. */
   occlusalGap: number;
-  innerGap: number;
+  /**
+   * Recurring Esthetic Dental proportion: the apparent width of each tooth
+   * relative to its neighbour toward the midline.
+   *
+   * Replaces the previous `innerGap` inter-tooth spacing control. Anterior
+   * contact points normally touch, so a slider that opens spaces between them
+   * produces diastemata -- a defect, not a design goal -- and no tool in the
+   * field exposes one. What they expose instead is this: the width relationship
+   * across the anterior six, which is a decision the clinician actually makes.
+   *
+   * 0.62 is the golden proportion (tall faces), 0.70 normal, 0.80 short faces.
+   */
+  redProportion: number;
+  /**
+   * Overall arch width, independent of tooth size -- the buccal corridor.
+   *
+   * Not in the inherited five, but it is step 8 of the DSD protocol and appears
+   * across the field's tools. On a frontal 2D design it is one of the few
+   * parameters that visibly changes the character of a smile: a narrow arch
+   * leaves dark corridors at the cheeks, a wide one fills them.
+   */
+  archWidth: number;
 }
 
 /**
@@ -87,14 +127,21 @@ const OCCLUSAL_GAP_SCALE = 0.0035;
  */
 const DEFAULT_INCISAL_DROP = 0.30;
 
-/** `innerGap` runs -5..+5, in tenths of a central incisor width per step. */
-const INNER_GAP_SCALE = 0.02;
-
 /**
- * `curveOfSpee` runs -5..+5. At +5 the arch drops noticeably at the corners;
- * at -5 it reverses. The unit is face-frame y per unit x squared.
+ * `smileCurve` runs -5..+5. At +5 the arch drops noticeably at the corners;
+ * at -5 it reverses into the flat-or-reverse arc that spec 6.2 calls the most
+ * common aesthetic failure. The unit is face-frame y per unit x squared.
  */
 const CURVE_SCALE = 0.06;
+
+/**
+ * Where RED stops applying.
+ *
+ * The proportion is defined across the anterior six -- central, lateral,
+ * canine. Premolars and molars are barely visible frontally and compounding the
+ * ratio that far back would shrink them to nothing.
+ */
+const RED_LAST_POSITION = 3;
 
 /**
  * Fit one arch.
@@ -114,7 +161,16 @@ function fitArch(
 
   const [rightCentral] = centralsOf(arch);
   const centralWidth = CENTRAL_WIDTH_IN_FACE_UNITS * params.scale;
-  const gap = params.innerGap * INNER_GAP_SCALE * centralWidth;
+  // Arch width controls the buccal corridor by changing how sharply the arch
+  // curves away from the viewer, not by compressing the teeth together.
+  //
+  // Scaling positions directly would be wrong: below 1.0 it pulls neighbours
+  // closer than their own widths allow and they overlap. A real narrow arch
+  // keeps its teeth in contact and turns them back toward the corners sooner,
+  // so the posterior teeth foreshorten and the corridor darkens. That is
+  // modelled here as apparent-width foreshortening that grows with distance
+  // from the midline.
+  const archCurvature = 1 - params.archWidth;
 
   // The template's own width:length is the baseline; `ratio` scales away from
   // it. A ratio equal to the template's leaves the teeth as authored.
@@ -147,17 +203,31 @@ function fitArch(
       // The occupied width must be computed from that same factor, or teeth
       // advance by a different amount than they are drawn at and the arch
       // overlaps itself.
-      const width = tooth.width * centralWidth;
+      // RED reshapes the anterior width relationships. Position 1 (central) is
+      // unchanged; every step outward multiplies by the proportion, so the
+      // whole run stays anchored to the central rather than drifting.
+      const redScale = redScaleFor(
+        distanceFromMidline(universal, arch),
+        tooth.width,
+        params.redProportion,
+      );
+
+      // Foreshortening from arch curvature: teeth further from the midline turn
+      // away from the viewer, so they present less width. A narrow arch turns
+      // sooner and its corner teeth compress; a wide one presents them squarely.
+      const turn = foreshortening(edge, centralWidth, archCurvature);
+      const width = tooth.width * centralWidth * redScale * turn;
       const lengthScale = lengthScaleFor(params.ratio, templateRatio);
 
-      // Centre of this tooth, measured outward along the arch.
+      // Centre of this tooth, measured outward along the arch. Teeth stay in
+      // contact: `edge` already accounts for every tooth placed before it.
       const centreOffset = edge + width / 2;
       const x = direction * centreOffset;
 
       placed.push({
         universal,
         position: vec(x, incisalY(x, tooth, centralWidth, params, arch)),
-        scaleX: centralWidth,
+        scaleX: centralWidth * redScale * turn,
         // Template outlines are authored with +y toward the gum. For the upper
         // arch the gum is above the biting edge, which in face-frame terms
         // (y down) means negating. The lower arch's gum is below, so it keeps
@@ -170,7 +240,7 @@ function fitArch(
         auxiliary: auxiliarySet.has(universal),
       });
 
-      edge += width + gap;
+      edge += width;
     }
   }
 
@@ -193,6 +263,55 @@ function distanceFromMidline(universal: Universal, arch: Arch): number {
   return universal <= rightCentral
     ? rightCentral - universal + 1
     : universal - leftCentral + 1;
+}
+
+/**
+ * How much apparent width a tooth loses to arch curvature.
+ *
+ * `curvature` is 0 for a flat arch presenting every tooth squarely, positive
+ * for a narrow arch that turns away sooner, negative for a wide one. The
+ * falloff is quadratic in distance from the midline, so the centrals are
+ * essentially untouched and the effect concentrates at the corners -- which is
+ * exactly where the buccal corridor lives.
+ *
+ * Clamped so an extreme setting cannot invert or collapse a tooth.
+ */
+function foreshortening(
+  offsetFromMidline: number,
+  centralWidth: number,
+  curvature: number,
+): number {
+  if (curvature === 0) return 1;
+  // Measure the offset in central-incisor widths so the effect is independent
+  // of the overall scale.
+  const units = offsetFromMidline / centralWidth;
+  return Math.min(1.4, Math.max(0.4, 1 - curvature * units * units * 0.22));
+}
+
+/**
+ * The RED width multiplier for a tooth at `position` from the midline.
+ *
+ * Recurring Esthetic Dental proportion: each anterior tooth's apparent width is
+ * a fixed fraction of its neighbour toward the midline, so the lateral is
+ * `red x` the central and the canine `red x` the lateral.
+ *
+ * The multiplier is computed against the tooth's *own template width*, not as a
+ * correction factor on it. Correcting compounds wrongly: the template's
+ * canine:lateral and lateral:central ratios differ from each other, so a single
+ * factor applied repeatedly does not converge on a uniform proportion -- it
+ * left the canine at 0.93 of the lateral when 0.70 was asked for.
+ *
+ * `templateWidth` is relative to the central at 1.0, which is exactly the scale
+ * RED is defined in, so the target width is simply `red^(position-1)`.
+ */
+function redScaleFor(
+  position: number,
+  templateWidth: number,
+  redProportion: number,
+): number {
+  if (position <= 1 || position > RED_LAST_POSITION) return 1;
+  const target = redProportion ** (position - 1);
+  return target / templateWidth;
 }
 
 /**
@@ -219,7 +338,7 @@ function lengthScaleFor(ratio: number, templateRatio: number): number {
  * edge sits near y = 0 by default. Three things move it:
  *
  *  - the template's own `incisalOffset`, which produces the gull-wing arc;
- *  - `curveOfSpee`, deepening or reversing the arc across the whole run;
+ *  - `smileCurve`, deepening or reversing the arc across the whole run;
  *  - `occlusalGap`, shifting the entire arch up or down against the lip.
  */
 function incisalY(
@@ -231,8 +350,8 @@ function incisalY(
 ): number {
   const gullWing = tooth.incisalOffset * centralWidth;
   // Quadratic in distance from the midline: flat at the centrals, rising into
-  // the corners. Positive curveOfSpee deepens the arc (corners ride higher).
-  const spee = params.curveOfSpee * CURVE_SCALE * x * x;
+  // the corners. A positive smileCurve deepens the arc (corners ride higher).
+  const spee = params.smileCurve * CURVE_SCALE * x * x;
   const occlusal = params.occlusalGap * OCCLUSAL_GAP_SCALE;
 
   // The upper arch hangs down from above the lip line and the lower rises from
@@ -249,11 +368,11 @@ function incisalY(
  *
  * Derived from the curve so the teeth stay perpendicular to it: the slope of
  * the incisal curve at this tooth's position is its rotation. Ties the splay to
- * `curveOfSpee` rather than making it a separate invented parameter.
+ * `smileCurve` rather than making it a separate invented parameter.
  */
 function splay(centreOffset: number, params: FitParams): number {
-  // Slope of the incisal curve at this tooth: d/dx of curveOfSpee * k * x^2.
-  const slope = 2 * params.curveOfSpee * CURVE_SCALE * centreOffset;
+  // Slope of the incisal curve at this tooth: d/dx of smileCurve * k * x^2.
+  const slope = 2 * params.smileCurve * CURVE_SCALE * centreOffset;
   // `atan` turns the slope into the angle the curve makes with the horizontal,
   // which is exactly how far the tooth must turn to stay perpendicular to it.
   // Damped, because following the curve exactly over-rotates the corner teeth

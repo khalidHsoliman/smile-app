@@ -22,18 +22,26 @@ import {
 } from '../domain/faceFrame.js';
 import { DEFAULT_TEMPLATE_ID } from '../domain/templates/buildTemplate.js';
 
-/** The five global fine-tune parameters (spec 6.4). */
+/**
+ * The global fine-tune parameters.
+ *
+ * Spec 6.4 inherited five from the previous desktop product. Three are kept,
+ * one renamed, one replaced and one added -- see `domain/fitting.ts` for the
+ * reasoning behind each change.
+ */
 export interface FineTuneParams {
-  /** Width-to-length ratio. 0.10 - 1.00. */
+  /** Width-to-length ratio of the central incisor. Clinical target 0.80. */
   ratio: number;
-  /** Overall arch size relative to the face. 0.10 - 4.00. */
+  /** Overall arch size relative to the face. */
   scale: number;
-  /** Curvature of the incisal edge line. -5.0 - +5.0. */
-  curveOfSpee: number;
-  /** Vertical offset of the arch against the lip line. -100 - +100. */
+  /** Curvature of the incisal edge, following the lower lip. */
+  smileCurve: number;
+  /** Vertical offset of the arch against the lip line. */
   occlusalGap: number;
-  /** Horizontal spacing between adjacent teeth. -5.0 - +5.0. */
-  innerGap: number;
+  /** RED proportion: 0.62 golden, 0.70 normal, 0.80 short face. */
+  redProportion: number;
+  /** Arch width -- the buccal corridor. 1.0 leaves the span as fitted. */
+  archWidth: number;
 }
 
 /**
@@ -41,19 +49,32 @@ export interface FineTuneParams {
  * desktop product (spec 6.4). Used by the sliders and by `clampParams`.
  */
 export const PARAM_LIMITS = {
-  ratio: { min: 0.1, max: 1.0, step: 0.01 },
-  scale: { min: 0.1, max: 4.0, step: 0.1 },
-  curveOfSpee: { min: -5.0, max: 5.0, step: 0.1 },
+  /*
+   * Narrowed from the inherited 0.10-1.00. Below about 0.55 a central incisor
+   * is anatomically impossible, so most of that travel was unusable and the
+   * clinically meaningful band was a small part of the track. 0.55-0.95
+   * comfortably contains the 0.70-0.90 working range and the 0.80 target.
+   */
+  ratio: { min: 0.55, max: 0.95, step: 0.01 },
+  scale: { min: 0.1, max: 4.0, step: 0.05 },
+  smileCurve: { min: -5.0, max: 5.0, step: 0.1 },
   occlusalGap: { min: -100, max: 100, step: 1 },
-  innerGap: { min: -5.0, max: 5.0, step: 0.1 },
+  /*
+   * The published RED band: 0.62 golden proportion (tall faces), 0.70 normal,
+   * 0.80 short faces. A little headroom either side for judgment.
+   */
+  redProportion: { min: 0.55, max: 0.85, step: 0.01 },
+  /* +/- 25% of the fitted span covers narrow-to-wide buccal corridors. */
+  archWidth: { min: 0.75, max: 1.25, step: 0.01 },
 } as const satisfies Record<keyof FineTuneParams, { min: number; max: number; step: number }>;
 
 export const DEFAULT_PARAMS: FineTuneParams = {
-  ratio: 0.8, // mid width:length for a central incisor (spec 1.4)
+  ratio: 0.8, // the clinical target for a central incisor (spec 1.4)
   scale: 1.0,
-  curveOfSpee: 0,
+  smileCurve: 1.0, // a visible smile arc by default; flat reads as artificial
   occlusalGap: 0,
-  innerGap: 0,
+  redProportion: 0.7, // normal facial height
+  archWidth: 1.0,
 };
 
 /** Clamp each parameter into its validated range. */
@@ -65,9 +86,10 @@ export function clampParams(params: FineTuneParams): FineTuneParams {
   return {
     ratio: clamp('ratio'),
     scale: clamp('scale'),
-    curveOfSpee: clamp('curveOfSpee'),
+    smileCurve: clamp('smileCurve'),
     occlusalGap: clamp('occlusalGap'),
-    innerGap: clamp('innerGap'),
+    redProportion: clamp('redProportion'),
+    archWidth: clamp('archWidth'),
   };
 }
 

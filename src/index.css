@@ -321,3 +321,12 @@ body { margin: 0; }
 
 .toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; cursor: pointer; }
 .toggle input { accent-color: currentColor; }
+
+/* Published clinical targets, shown under the sliders that have them. */
+.slider__clinical {
+  display: block;
+  margin-top: 0.15rem;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}

@@ -18,26 +18,35 @@ const LABELS: Record<keyof FineTuneParams, { name: string; hint: string }> = {
     name: 'Scale',
     hint: 'Overall size of the arch against the face.',
   },
-  curveOfSpee: {
-    name: 'Curve of Spee',
-    hint: 'Curvature of the incisal edge. Negative flattens or reverses it.',
+  smileCurve: {
+    name: 'Smile curve',
+    hint: 'Arc of the incisal edges. It should follow the lower lip; flat or reversed reads as artificial.',
   },
   occlusalGap: {
     name: 'Occlusal gap',
     hint: 'How far the arch sits up or down against the lip line.',
   },
-  innerGap: {
-    name: 'Inner gap',
-    hint: 'Spacing between neighbouring teeth. Negative overlaps them.',
+  redProportion: {
+    name: 'Tooth proportion',
+    hint: 'Width of each tooth against its neighbour. 0.62 golden, 0.70 normal, 0.80 short face.',
+  },
+  archWidth: {
+    name: 'Arch width',
+    hint: 'Fills or opens the dark corridors at the corners of the smile.',
   },
 };
 
+/**
+ * Ordered by how a clinician works: size the arch, set its proportions, place
+ * it against the lip, then shape the corners.
+ */
 const ORDER: (keyof FineTuneParams)[] = [
   'scale',
   'ratio',
-  'curveOfSpee',
+  'redProportion',
+  'smileCurve',
   'occlusalGap',
-  'innerGap',
+  'archWidth',
 ];
 
 export function ParamSliders() {
@@ -77,7 +86,12 @@ export function ParamSliders() {
               }
             />
             <output className="slider__value">{format(key, value)}</output>
-            <span className="slider__hint">{LABELS[key].hint}</span>
+            <span className="slider__hint">
+              {LABELS[key].hint}
+              {CLINICAL_MARKS[key] && (
+                <em className="slider__clinical">{CLINICAL_MARKS[key]}</em>
+              )}
+            </span>
           </label>
         );
       })}
@@ -91,3 +105,15 @@ function format(key: keyof FineTuneParams, value: number): string {
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
   return value.toFixed(decimals);
 }
+
+/**
+ * Published clinical targets, shown under the tracks that have them.
+ *
+ * These are the numbers a clinician is aiming at, so putting them on the
+ * control saves recalling them -- and makes it obvious when a design has
+ * drifted outside the accepted band.
+ */
+const CLINICAL_MARKS: Partial<Record<keyof FineTuneParams, string>> = {
+  ratio: 'target 0.80 · accepted 0.70-0.90',
+  redProportion: '0.62 golden · 0.70 normal · 0.80 short face',
+};
