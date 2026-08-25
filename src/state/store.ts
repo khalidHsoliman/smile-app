@@ -29,6 +29,7 @@ import {
   type ToothEdit,
   type ToothEdits,
 } from '../domain/toothEdits.js';
+import type { StoredCase } from './persistence.js';
 import {
   canRedo,
   canUndo,
@@ -255,6 +256,11 @@ export interface AppState {
   redo(): void;
   canUndo(): boolean;
   canRedo(): boolean;
+
+  /** Rehydrate a saved case. Replaces the whole working state. */
+  restoreCase(saved: StoredCase): void;
+  /** Discard the working case and start over. */
+  clearCase(): void;
   /**
    * Mark the start of a slider drag. Everything until `endParamDrag` is one
    * user action and must collapse into a single undo entry (spec 9.3).
@@ -712,6 +718,73 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   canUndo: () => canUndo(get().history),
   canRedo: () => canRedo(get().history),
+
+  restoreCase(saved) {
+    // Photos come back as Blobs; the object URLs are recreated here because a
+    // persisted URL would be a dead reference (see `persistence.ts`).
+    const photos: AppState['photos'] = { smile: null, retracted: null };
+    for (const kind of ['smile', 'retracted'] as const) {
+      const stored = saved.photos[kind];
+      if (!stored) continue;
+      photos[kind] = {
+        url: URL.createObjectURL(stored.blob),
+        width: stored.width,
+        height: stored.height,
+        rotation: stored.rotation,
+      };
+    }
+
+    set((state) => ({
+      photos,
+      selectedTeeth: saved.selectedTeeth,
+      design: { ...state.design, ...saved.design, selection: [] },
+      report: saved.report,
+      // The frame is derived, never stored, so it is recomputed below from the
+      // restored references (spec 9.1).
+      face: { refs: null, frame: null, error: null },
+      history: initHistory({
+        templateId: saved.design.templateId,
+        params: saved.design.params,
+        edits: saved.design.edits,
+      }),
+    }));
+
+    // Re-run the gates so the restored case lands on the right step with the
+    // right steps unlocked, rather than trusting a persisted flag.
+    get().syncUploadGate();
+    if (saved.refs) get().setFacialReferences(saved.refs);
+  },
+
+  clearCase() {
+    for (const kind of ['smile', 'retracted'] as const) {
+      const photo = get().photos[kind];
+      if (photo) URL.revokeObjectURL(photo.url);
+    }
+    set({
+      step: 'upload',
+      unlockedSteps: new Set<Step>(['upload']),
+      photos: { smile: null, retracted: null },
+      selectedTeeth: [],
+      face: { refs: null, frame: null, error: null },
+      design: {
+        templateId: DEFAULT_TEMPLATE_ID,
+        params: { ...DEFAULT_PARAMS },
+        teethOpacity: 0.9,
+        lipMask: true,
+        palette: DEFAULT_PALETTE,
+        paletteSampled: false,
+        edits: {},
+        selection: [],
+        mirrorMode: true,
+      },
+      report: { patientName: '', clinicName: '' },
+      history: initHistory({
+        templateId: DEFAULT_TEMPLATE_ID,
+        params: { ...DEFAULT_PARAMS },
+        edits: {},
+      }),
+    });
+  },
 
   setReportField(field, value) {
     set((state) => ({ report: { ...state.report, [field]: value } }));

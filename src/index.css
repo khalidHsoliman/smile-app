@@ -519,3 +519,23 @@ body { margin: 0; }
 }
 .undo__button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 12%, transparent); }
 .undo__button:disabled { opacity: 0.35; cursor: default; }
+
+/* --- save status --- */
+
+.app__status { margin-left: auto; display: flex; align-items: center; gap: 0.6rem; }
+
+.app__save { font-size: 0.7rem; opacity: 0.55; }
+.app__save[data-state='failed'],
+.app__save[data-state='unavailable'] { color: #d38b00; opacity: 1; }
+
+.app__new {
+  padding: 0.25rem 0.55rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.app__new:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
