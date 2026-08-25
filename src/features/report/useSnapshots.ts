@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '../../state/store.js';
 import { orientedSize } from '../../domain/imageOrientation.js';
 import { fitArches } from '../../domain/fitting.js';
+import { applyEdits } from '../../domain/toothEdits.js';
 import { getTemplate } from '../../domain/templates/buildTemplate.js';
 import { lipBoxFrom } from '../../domain/lipBox.js';
 import type { Rect } from '../../domain/geometry.js';
@@ -46,10 +47,17 @@ export function useSnapshots() {
 
   const template = design.templateId ? getTemplate(design.templateId) : undefined;
 
-  const fit = useMemo(
-    () => (template ? fitArches(selectedTeeth, template, design.params) : null),
-    [template, selectedTeeth, design.params],
-  );
+  /*
+   * The fit *with* the per-tooth edits applied. The report must show exactly
+   * what the clinician approved on screen -- exporting the raw fit would
+   * silently discard every manual adjustment, which is the worst possible bug
+   * in a patient-facing deliverable.
+   */
+  const fit = useMemo(() => {
+    if (!template) return null;
+    const fitted = fitArches(selectedTeeth, template, design.params);
+    return { ...fitted, teeth: applyEdits(fitted.teeth, design.edits) };
+  }, [template, selectedTeeth, design.params, design.edits]);
 
   const smileSize = photos.smile
     ? orientedSize(photos.smile, photos.smile.rotation)

@@ -455,3 +455,50 @@ body { margin: 0; }
 
   @page { margin: 14mm; }
 }
+
+/* --- per-tooth selection --- */
+
+.tooth[data-interactive] { cursor: pointer; }
+
+.tooth__selected {
+  fill: none;
+  stroke: #35d0ff;
+  stroke-width: 2.2;
+  stroke-opacity: 0.95;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* --- per-tooth editor --- */
+
+.editor {
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+.editor__header { display: flex; align-items: center; justify-content: space-between; }
+.editor__empty { margin: 0; font-size: 0.72rem; opacity: 0.5; line-height: 1.4; }
+
+.editor__selection { margin: 0; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.editor__selection em { font-style: normal; opacity: 0.55; font-size: 0.72rem; }
+
+.editor__pad { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+
+.editor__nudge {
+  min-width: 2rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.editor__nudge:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.editor__nudge:active { background: color-mix(in srgb, currentColor 24%, transparent); }
+
+.editor__reset { justify-self: start; }
+.editor__reset:disabled { opacity: 0.4; cursor: default; }

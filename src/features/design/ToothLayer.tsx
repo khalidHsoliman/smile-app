@@ -23,6 +23,10 @@ interface ToothLayerProps {
   masked?: boolean;
   /** Enamel tones, sampled from the photo where possible. */
   palette: ToothPalette;
+  /** Teeth currently selected for editing. */
+  selection?: readonly number[];
+  /** Click handler. Omit to render a non-interactive layer, as export does. */
+  onToothClick?: (universal: number, extend: boolean) => void;
 }
 
 /**
@@ -46,12 +50,15 @@ export function ToothLayer({
   opacity,
   masked = true,
   palette,
+  selection,
+  onToothClick,
 }: ToothLayerProps) {
   const faceToWorld = useMemo(() => faceToWorldMatrix(frame), [frame]);
   const clipId = useId();
 
   const aperture = refs.mouthAperture;
   const useMask = masked && aperture !== undefined && aperture.length >= 3;
+  const selected = new Set(selection ?? []);
 
   return (
     <>
@@ -93,7 +100,17 @@ export function ToothLayer({
               className="tooth"
               data-universal={tooth.universal}
               data-auxiliary={tooth.auxiliary || undefined}
+              data-selected={selected.has(tooth.universal) || undefined}
+              data-interactive={onToothClick && !tooth.auxiliary ? '' : undefined}
               transform={matrix}
+              onPointerDown={
+                onToothClick && !tooth.auxiliary
+                  ? (event) => {
+                      event.stopPropagation();
+                      onToothClick(tooth.universal, event.shiftKey);
+                    }
+                  : undefined
+              }
             >
               {/*
                 Three passes over the same outline: the enamel body, the
@@ -104,6 +121,9 @@ export function ToothLayer({
               <path className="tooth__proximal" d={tooth.outline} fill={`url(#${shading}-proximal)`} />
               <path className="tooth__highlight" d={tooth.outline} fill={`url(#${shading}-highlight)`} />
               <path className="tooth__edge" d={tooth.outline} />
+              {selected.has(tooth.universal) && (
+                <path className="tooth__selected" d={tooth.outline} />
+              )}
             </g>
           );
         })}

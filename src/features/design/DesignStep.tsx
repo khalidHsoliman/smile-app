@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from '../../state/store.js';
 import { orientedSize } from '../../domain/imageOrientation.js';
 import { fitArches } from '../../domain/fitting.js';
+import { applyEdits } from '../../domain/toothEdits.js';
 import { getTemplate } from '../../domain/templates/buildTemplate.js';
 import { sampleToothColor } from '../../vision/sampleToothColor.js';
 import { decodeForDetection } from '../../vision/faceLandmarker.js';
 import { TemplatePicker } from './TemplatePicker.js';
 import { ParamSliders } from './ParamSliders.js';
+import { ToothEditor } from './ToothEditor.js';
 import { ToothLayer } from './ToothLayer.js';
 
 /**
@@ -30,6 +32,10 @@ export function DesignStep() {
   const lipMask = useAppStore((s) => s.design.lipMask);
   const setLipMask = useAppStore((s) => s.setLipMask);
   const palette = useAppStore((s) => s.design.palette);
+  const edits = useAppStore((s) => s.design.edits);
+  const selection = useAppStore((s) => s.design.selection);
+  const toggleToothSelection = useAppStore((s) => s.toggleToothSelection);
+  const setToothSelection = useAppStore((s) => s.setToothSelection);
   const paletteSampled = useAppStore((s) => s.design.paletteSampled);
   const setPalette = useAppStore((s) => s.setPalette);
 
@@ -67,10 +73,16 @@ export function DesignStep() {
     };
   }, [photoUrl, aperture, setPalette]);
 
-  const fit = useMemo(
-    () => (template ? fitArches(selectedTeeth, template, params) : null),
-    [template, selectedTeeth, params],
-  );
+  /*
+   * The fit, then the manual deltas on top of it (spec 11.6). Two steps, not
+   * one: the fit never sees the edits, so a slider change recomputes cleanly
+   * and the deltas reapply to the new placement instead of being destroyed.
+   */
+  const fit = useMemo(() => {
+    if (!template) return null;
+    const fitted = fitArches(selectedTeeth, template, params);
+    return { ...fitted, teeth: applyEdits(fitted.teeth, edits) };
+  }, [template, selectedTeeth, params, edits]);
 
   if (!photo || !frame || !refs) {
     return <p className="placeholder">Complete the facial analysis first.</p>;
@@ -95,6 +107,15 @@ export function DesignStep() {
               height={size.height}
               transform={photoTransform(photo.rotation, size)}
             />
+            {/* Clicking away from a tooth clears the selection. */}
+            <rect
+              x={0}
+              y={0}
+              width={size.width}
+              height={size.height}
+              fill="transparent"
+              onPointerDown={() => setToothSelection([])}
+            />
             {fit && (
               <ToothLayer
                 fit={fit}
@@ -103,6 +124,8 @@ export function DesignStep() {
                 opacity={teethOpacity}
                 masked={lipMask}
                 palette={palette}
+                selection={selection}
+                onToothClick={toggleToothSelection}
               />
             )}
           </svg>
@@ -164,6 +187,8 @@ export function DesignStep() {
           </div>
 
           <ParamSliders />
+
+          <ToothEditor />
 
           <h2 className="step__heading">Template</h2>
           <TemplatePicker />

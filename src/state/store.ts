@@ -12,7 +12,7 @@
 
 import { create } from 'zustand';
 import { STEPS, type Step, stepIndex, stepsAfter } from './steps.js';
-import type { Universal } from '../domain/teeth.js';
+import { mirrorOf, type Universal } from '../domain/teeth.js';
 import { IDENTITY, type Matrix2D } from '../domain/geometry.js';
 import { rotateBy, type QuarterTurns } from '../domain/imageOrientation.js';
 import {
@@ -22,6 +22,13 @@ import {
 } from '../domain/faceFrame.js';
 import { DEFAULT_TEMPLATE_ID } from '../domain/templates/buildTemplate.js';
 import { DEFAULT_PALETTE, type ToothPalette } from '../vision/sampleToothColor.js';
+import {
+  clearEdits,
+  editTooth,
+  mirrorEdit,
+  type ToothEdit,
+  type ToothEdits,
+} from '../domain/toothEdits.js';
 
 /**
  * The global fine-tune parameters.
@@ -142,6 +149,16 @@ export interface AppState {
     palette: ToothPalette;
     /** True when `palette` came from the photo rather than the default. */
     paletteSampled: boolean;
+    /**
+     * Per-tooth adjustments, as deltas on top of the computed fit (spec 11.6).
+     * Never replacements -- that is what lets a global slider change and a
+     * manual nudge coexist.
+     */
+    edits: ToothEdits;
+    /** Teeth the user has selected for editing. */
+    selection: Universal[];
+    /** Apply every edit to the contralateral partner as well (spec 6.5). */
+    mirrorMode: boolean;
   };
 
   /**
@@ -192,6 +209,16 @@ export interface AppState {
   /** Adopt a sampled palette, or pass null to return to the default. */
   setPalette(palette: ToothPalette | null): void;
   setReportField(field: 'patientName' | 'clinicName', value: string): void;
+
+  /** Replace the editing selection. */
+  setToothSelection(teeth: Universal[]): void;
+  /** Add or remove one tooth from the editing selection. */
+  toggleToothSelection(tooth: Universal, extend: boolean): void;
+  /** Apply a delta to every selected tooth. */
+  nudgeSelection(delta: ToothEdit): void;
+  /** Return the selected teeth to their computed placement. */
+  resetSelection(): void;
+  setMirrorMode(enabled: boolean): void;
   /**
    * Mark the start of a slider drag. Everything until `endParamDrag` is one
    * user action and must collapse into a single undo entry (spec 9.3).
@@ -223,6 +250,10 @@ const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
       ...state.design,
       templateId: DEFAULT_TEMPLATE_ID,
       params: { ...DEFAULT_PARAMS },
+      // Manual edits are anchored to a particular fit; once the design is
+      // invalidated they no longer mean anything.
+      edits: {},
+      selection: [],
     },
   }),
   report: () => ({}),
@@ -243,6 +274,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
     lipMask: true,
     palette: DEFAULT_PALETTE,
     paletteSampled: false,
+    edits: {},
+    selection: [],
+    mirrorMode: true,
   },
   view: { transform: IDENTITY },
   report: { patientName: '', clinicName: '' },
@@ -390,7 +424,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   setTemplate(templateId) {
-    set((state) => ({ design: { ...state.design, templateId } }));
+    // Per-tooth edits are deltas against a particular set of tooth shapes, so a
+    // different template makes them meaningless -- a nudge that squared up a
+    // Natural canine means nothing on a Hollywood one. `invalidateAfter` cannot
+    // do this: it only resets steps *after* its argument, never design's own
+    // state, so the clearing has to be explicit.
+    set((state) => ({
+      design: { ...state.design, templateId, edits: {}, selection: [] },
+    }));
     get().invalidateAfter('design');
   },
 
@@ -433,6 +474,88 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
     // Colour is presentation, not design geometry -- nothing downstream is
     // stale because of it.
+  },
+
+  setToothSelection(teeth) {
+    set((state) => ({
+      design: { ...state.design, selection: [...new Set(teeth)].sort((a, b) => a - b) },
+    }));
+  },
+
+  toggleToothSelection(tooth, extend) {
+    set((state) => {
+      const current = new Set(state.design.selection);
+      if (extend) {
+        if (current.has(tooth)) current.delete(tooth);
+        else current.add(tooth);
+      } else {
+        // A plain click replaces the selection unless it is already the only
+        // thing selected, in which case it deselects.
+        const only = current.size === 1 && current.has(tooth);
+        current.clear();
+        if (!only) current.add(tooth);
+      }
+      return {
+        design: { ...state.design, selection: [...current].sort((a, b) => a - b) },
+      };
+    });
+  },
+
+  nudgeSelection(delta) {
+    const { selection, mirrorMode, edits } = get().design;
+    if (selection.length === 0) return;
+
+    const selected = new Set(selection);
+    let next = edits;
+
+    for (const tooth of selection) {
+      const partner = mirrorOf(tooth);
+      const partnerSelected = selected.has(partner) && partner !== tooth;
+
+      if (!mirrorMode) {
+        next = editTooth(next, tooth, delta, false);
+        continue;
+      }
+
+      if (partnerSelected) {
+        /*
+         * Both partners are selected, so each is reached by the loop on its own
+         * turn. Applying the mirrored delta here as well would double it.
+         *
+         * Instead each tooth takes the delta oriented to *its* side, so the
+         * pair moves symmetrically -- pressing "right" walks them apart rather
+         * than sliding both the same way, which is what mirror mode means.
+         * Teeth on the patient's right (universal <= the arch's right central)
+         * take the reflected delta.
+         */
+        const onRight = tooth <= (tooth <= 16 ? 8 : 24);
+        next = editTooth(next, tooth, onRight ? mirrorEdit(delta) : delta, false);
+      } else {
+        // Only this tooth is selected: edit it and reflect onto its partner.
+        next = editTooth(next, tooth, delta, true);
+      }
+    }
+
+    set((state) => ({ design: { ...state.design, edits: next } }));
+    // Edits are deltas on the fit, so nothing upstream is stale -- but the
+    // report's snapshots are, and they regenerate on entry.
+  },
+
+  resetSelection() {
+    const { selection, mirrorMode } = get().design;
+    if (selection.length === 0) return;
+
+    const affected = mirrorMode
+      ? selection.flatMap((t) => [t, mirrorOf(t)])
+      : selection;
+
+    set((state) => ({
+      design: { ...state.design, edits: clearEdits(state.design.edits, affected) },
+    }));
+  },
+
+  setMirrorMode(enabled) {
+    set((state) => ({ design: { ...state.design, mirrorMode: enabled } }));
   },
 
   setReportField(field, value) {
