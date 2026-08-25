@@ -47,6 +47,31 @@ export const UPPER_LIP_LOWER_BORDER = [
   78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308,
 ] as const;
 
+/**
+ * The upper border of the *lower* lip, ordered from the image's left back to
+ * its right -- the reverse of `UPPER_LIP_LOWER_BORDER`, so concatenating the
+ * two walks the mouth aperture as one closed ring.
+ *
+ * 78 and 308 are the mouth corners and belong to both borders, so they are
+ * omitted here to avoid duplicating them in the ring.
+ */
+export const LOWER_LIP_UPPER_BORDER = [
+  324, 318, 402, 317, 14, 87, 178, 88, 95,
+] as const;
+
+/**
+ * The mouth aperture, as one closed ring of landmark indices.
+ *
+ * This is the inner opening between the lips -- the region where teeth are
+ * actually visible. It is the clip path the design is masked to (spec 7.1);
+ * without it the template teeth paint straight over the lips and every design
+ * reads as pasted on.
+ */
+export const MOUTH_APERTURE = [
+  ...UPPER_LIP_LOWER_BORDER,
+  ...LOWER_LIP_UPPER_BORDER,
+] as const;
+
 /** Point counts the model is known to emit. */
 export const LANDMARKS_WITH_IRIS = 478;
 export const LANDMARKS_WITHOUT_IRIS = 468;

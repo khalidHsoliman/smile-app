@@ -58,6 +58,15 @@ export interface FacialReferences {
    * Controls vertical placement and the smile arc the incisal edges follow.
    */
   lipCurve: Vec2[];
+  /**
+   * The mouth aperture as a closed ring, in image pixels.
+   *
+   * The design is clipped to this so teeth cannot paint over the lips
+   * (spec 7.1). Optional: it comes from the detector, and a hand-placed set of
+   * references has no aperture -- the design then renders unmasked rather than
+   * vanishing entirely.
+   */
+  mouthAperture?: Vec2[];
 }
 
 /** The derived orthonormal frame. */

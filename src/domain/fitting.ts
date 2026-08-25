@@ -80,10 +80,12 @@ const OCCLUSAL_GAP_SCALE = 0.0035;
  * lip*. In a natural smile the upper incisors show below that border -- that
  * visible band is most of what a smile design is judged on -- so resting the
  * edge exactly on the origin would tuck the teeth entirely behind the lip.
- * A small positive default puts them where a clinician expects to see them and
- * leaves the slider free to move either way.
+ * The default drops the incisal edge about a third of a face unit -- roughly
+ * two thirds of a central incisor's length -- which fills the visible aperture
+ * of an average smile instead of leaving a sliver of tooth under the lip. The
+ * occlusalGap slider moves freely either side of it.
  */
-const DEFAULT_INCISAL_DROP = 0.09;
+const DEFAULT_INCISAL_DROP = 0.30;
 
 /** `innerGap` runs -5..+5, in tenths of a central incisor width per step. */
 const INNER_GAP_SCALE = 0.02;

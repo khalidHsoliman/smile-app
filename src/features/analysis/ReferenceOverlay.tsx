@@ -8,8 +8,15 @@ interface ReferenceOverlayProps {
   onChange: (refs: FacialReferences) => void;
 }
 
-/** The single-point handles, as keys into `FacialReferences`. */
-type PointKey = Exclude<keyof FacialReferences, 'lipCurve'>;
+/**
+ * The single-point handles: every reference field that is one `Vec2`.
+ *
+ * Derived structurally rather than by excluding field names, so adding another
+ * polyline reference cannot silently break this.
+ */
+type PointKey = {
+  [K in keyof FacialReferences]-?: FacialReferences[K] extends Vec2 ? K : never;
+}[keyof FacialReferences];
 
 const POINT_LABELS: Record<PointKey, string> = {
   leftPupil: 'Left pupil',

@@ -109,6 +109,8 @@ export interface AppState {
      * most-used control (spec 7.1).
      */
     teethOpacity: number;
+    /** Clip the design to the mouth aperture (spec 7.1). */
+    lipMask: boolean;
   };
 
   /**
@@ -149,6 +151,7 @@ export interface AppState {
   setTemplate(templateId: string): void;
   setParams(params: Partial<FineTuneParams>): void;
   setTeethOpacity(opacity: number): void;
+  setLipMask(enabled: boolean): void;
   /**
    * Mark the start of a slider drag. Everything until `endParamDrag` is one
    * user action and must collapse into a single undo entry (spec 9.3).
@@ -198,6 +201,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     templateId: DEFAULT_TEMPLATE_ID,
     params: { ...DEFAULT_PARAMS },
     teethOpacity: 0.9,
+    lipMask: true,
   },
   view: { transform: IDENTITY },
   paramDragActive: false,
@@ -372,6 +376,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
       design: { ...state.design, teethOpacity: Math.min(1, Math.max(0, opacity)) },
     }));
     // Opacity is a view preference, not design input -- it invalidates nothing.
+  },
+
+  setLipMask(enabled) {
+    set((state) => ({ design: { ...state.design, lipMask: enabled } }));
+    // A view preference, like opacity -- it invalidates nothing.
   },
 
   resetParams() {

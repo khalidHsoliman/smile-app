@@ -22,6 +22,7 @@ import {
   IRIS_CENTER_IMAGE_LEFT,
   IRIS_CENTER_IMAGE_RIGHT,
   LANDMARKS_WITH_IRIS,
+  MOUTH_APERTURE,
   UPPER_LIP_LOWER_BORDER,
 } from '../vision/landmarkIndices.js';
 
@@ -67,6 +68,7 @@ export function deriveReferences(
 
   // MediaPipe's left/right is the image's; ours is the patient's. They mirror.
   const lipCurve = UPPER_LIP_LOWER_BORDER.map(at);
+  const mouthAperture = MOUTH_APERTURE.map(at);
 
   return {
     leftPupil: imageRightPupil,
@@ -76,5 +78,6 @@ export function deriveReferences(
     midlineTop: at(GLABELLA),
     midlineBottom: at(CHIN),
     lipCurve,
+    mouthAperture,
   };
 }

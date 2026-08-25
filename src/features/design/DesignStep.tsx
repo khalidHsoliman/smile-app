@@ -19,11 +19,14 @@ import { ToothLayer } from './ToothLayer.js';
 export function DesignStep() {
   const photo = useAppStore((s) => s.photos.smile);
   const frame = useAppStore((s) => s.face.frame);
+  const refs = useAppStore((s) => s.face.refs);
   const selectedTeeth = useAppStore((s) => s.selectedTeeth);
   const templateId = useAppStore((s) => s.design.templateId);
   const params = useAppStore((s) => s.design.params);
   const teethOpacity = useAppStore((s) => s.design.teethOpacity);
   const setTeethOpacity = useAppStore((s) => s.setTeethOpacity);
+  const lipMask = useAppStore((s) => s.design.lipMask);
+  const setLipMask = useAppStore((s) => s.setLipMask);
 
   const template = templateId ? getTemplate(templateId) : undefined;
 
@@ -32,7 +35,7 @@ export function DesignStep() {
     [template, selectedTeeth, params],
   );
 
-  if (!photo || !frame) {
+  if (!photo || !frame || !refs) {
     return <p className="placeholder">Complete the facial analysis first.</p>;
   }
 
@@ -55,7 +58,15 @@ export function DesignStep() {
               height={size.height}
               transform={photoTransform(photo.rotation, size)}
             />
-            {fit && <ToothLayer fit={fit} frame={frame} opacity={teethOpacity} />}
+            {fit && (
+              <ToothLayer
+                fit={fit}
+                frame={frame}
+                refs={refs}
+                opacity={teethOpacity}
+                masked={lipMask}
+              />
+            )}
           </svg>
         </div>
 
@@ -78,6 +89,20 @@ export function DesignStep() {
             <output className="slider__value">
               {Math.round(teethOpacity * 100)}%
             </output>
+          </label>
+
+          {/*
+            The mask is what puts the design inside the mouth. Turning it off
+            shows the whole arch, which is how you check the fit behind the
+            lips rather than only the part that shows.
+          */}
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={lipMask}
+              onChange={(event) => setLipMask(event.target.checked)}
+            />
+            <span>Clip teeth to the mouth</span>
           </label>
 
           <ParamSliders />

@@ -249,13 +249,25 @@ body { margin: 0; }
 
 .design__panel { display: grid; gap: 1rem; }
 
-.tooth {
-  fill: #f7f4ec;
-  stroke: #8d8272;
-  stroke-width: 0.6;
+.tooth[data-auxiliary] { display: none; }
+
+/*
+ * Enamel is built from stacked passes over one outline: body gradient,
+ * proximal fall-off, labial highlight, then a soft contour. Strokes use
+ * non-scaling-stroke so they stay hairline-thin however far the arch is
+ * scaled -- a scaled stroke reads as a thick cartoon outline.
+ */
+.tooth__body,
+.tooth__proximal,
+.tooth__highlight { stroke: none; }
+
+.tooth__edge {
+  fill: none;
+  stroke: #9c8f79;
+  stroke-width: 0.9;
+  stroke-opacity: 0.5;
   vector-effect: non-scaling-stroke;
 }
-.tooth[data-auxiliary] { display: none; }
 
 /* --- sliders --- */
 
@@ -294,3 +306,6 @@ body { margin: 0; }
   padding-bottom: 0.75rem;
   border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
 }
+
+.toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; cursor: pointer; }
+.toggle input { accent-color: currentColor; }
