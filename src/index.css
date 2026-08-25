@@ -1,0 +1,40 @@
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: light dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+
+.app__header {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.app__header h1 { font-size: 1rem; font-weight: 600; margin: 0; }
+
+.stepnav { display: flex; gap: 0.25rem; }
+
+.stepnav__step {
+  padding: 0.4rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.stepnav__step:disabled { opacity: 0.35; cursor: not-allowed; }
+.stepnav__step[aria-current='step'] {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  font-weight: 600;
+}
+
+.app__main { flex: 1; display: grid; place-items: center; }
+.placeholder { opacity: 0.5; }
