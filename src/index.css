@@ -115,29 +115,41 @@ body { margin: 0; }
 
 /* --- tooth chart --- */
 
-.chart { display: grid; gap: 0.5rem; }
-.chart__arch { display: flex; align-items: center; gap: 0.75rem; }
-.chart__label { width: 3.5rem; font-size: 0.75rem; opacity: 0.7; }
-.chart__row { display: flex; gap: 0.2rem; flex-wrap: wrap; }
+/*
+ * The two arches stack into one horseshoe, so they share a column and sit flush
+ * against each other rather than being spaced as independent rows.
+ */
+.chart { display: grid; gap: 0.5rem; justify-items: start; }
+.chart__arch { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); align-items: center; gap: 0.75rem; width: min(34rem, 100%); }
+.chart__label { font-size: 0.75rem; opacity: 0.7; }
+.chart__svg { width: 100%; height: auto; display: block; }
 
-.chart__tooth {
-  min-width: 2.1rem;
-  padding: 0.35rem 0.2rem;
-  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-  border-radius: 0.3rem;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 0.75rem;
+.chart__tooth { cursor: pointer; outline: none; }
+
+.chart__shape {
+  fill: color-mix(in srgb, currentColor 8%, transparent);
+  stroke: color-mix(in srgb, currentColor 35%, transparent);
+  stroke-width: 0.06;
+}
+.chart__tooth:hover .chart__shape { fill: color-mix(in srgb, currentColor 18%, transparent); }
+.chart__tooth[data-selected] .chart__shape {
+  fill: #e8dfc8;
+  stroke: #8d8272;
+}
+.chart__tooth:focus-visible .chart__shape {
+  stroke: currentColor;
+  stroke-width: 0.14;
+}
+
+.chart__number {
+  font-size: 0.75px;
+  fill: currentColor;
+  opacity: 0.5;
   font-variant-numeric: tabular-nums;
-  cursor: pointer;
+  pointer-events: none;
+  user-select: none;
 }
-.chart__tooth:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
-.chart__tooth[aria-pressed='true'] {
-  background: color-mix(in srgb, currentColor 22%, transparent);
-  border-color: currentColor;
-  font-weight: 600;
-}
+.chart__tooth[data-selected] .chart__number { opacity: 0.85; font-weight: 600; }
 
 .chart__hint { font-size: 0.75rem; opacity: 0.55; margin: 0; }
 

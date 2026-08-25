@@ -177,7 +177,6 @@ const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
   // being first. It is kept for completeness of the record and must stay
   // consistent with the initial state.
   upload: () => ({ photos: { smile: null, retracted: null }, selectedTeeth: [] }),
-  matching: () => ({}),
   analysis: () => ({ face: { refs: null, frame: null, error: null } }),
   design: (state) => ({
     design: {
@@ -324,9 +323,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const satisfied = photos.smile !== null && selectedTeeth.length > 0;
 
     if (satisfied) {
-      get().unlockStep('matching');
-      // Matching is deferred (spec 15): it is a pass-through for now, so
-      // clearing upload also opens facial analysis.
       get().unlockStep('analysis');
       return;
     }
@@ -343,9 +339,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   setSelectedTeeth(teeth) {
     set({ selectedTeeth: [...new Set(teeth)].sort((a, b) => a - b) });
-    // Tooth selection is owned by upload, but changing it must not discard the
-    // photos, so invalidate from `matching` onward (spec 4.1).
-    get().invalidateAfter('matching');
+    // Tooth selection belongs to upload, so everything after upload is stale --
+    // but the photos themselves must survive, which is why this invalidates
+    // from `upload` rather than resetting upload's own state (spec 4.1).
+    get().invalidateAfter('upload');
     get().syncUploadGate();
   },
 

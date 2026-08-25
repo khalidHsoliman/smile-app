@@ -6,7 +6,15 @@
  * constraint in the application (spec 4.1, 11.1).
  */
 
-export const STEPS = ['upload', 'matching', 'analysis', 'design', 'report'] as const;
+/*
+ * Photo matching sat between upload and analysis in the previous product,
+ * aligning the retracted photo to the smile photo. Spec 15 defers it for the
+ * MVP: the design happens on the smile photo, and the retracted one is a visual
+ * reference plus a second before/after pair in the report. It was a
+ * do-nothing pass-through here, and a step that exists but does nothing is
+ * worse than no step in a flow whose target is under five minutes.
+ */
+export const STEPS = ['upload', 'analysis', 'design', 'report'] as const;
 
 export type Step = (typeof STEPS)[number];
 

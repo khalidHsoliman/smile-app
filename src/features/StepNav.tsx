@@ -2,7 +2,6 @@ import { useAppStore, stepNavItems } from '../state/store.js';
 
 const LABELS = {
   upload: 'Upload',
-  matching: 'Matching',
   analysis: 'Facial Analysis',
   design: 'Design',
   report: 'Report',
