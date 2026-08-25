@@ -9,6 +9,7 @@ import { decodeForDetection } from '../../vision/faceLandmarker.js';
 import { TemplatePicker } from './TemplatePicker.js';
 import { ParamSliders } from './ParamSliders.js';
 import { ToothEditor } from './ToothEditor.js';
+import { UndoControls } from './UndoControls.js';
 import { ToothLayer } from './ToothLayer.js';
 
 /**
@@ -132,6 +133,8 @@ export function DesignStep() {
         </div>
 
         <aside className="design__panel">
+          <UndoControls />
+
           {/*
             Teeth opacity is a first-class, always-visible control, not a buried
             one: toggling it to compare against the original was the previous

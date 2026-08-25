@@ -29,6 +29,17 @@ import {
   type ToothEdit,
   type ToothEdits,
 } from '../domain/toothEdits.js';
+import {
+  canRedo,
+  canUndo,
+  clearHistory,
+  initHistory,
+  push,
+  redo,
+  replace,
+  undo,
+  type History,
+} from '../domain/history.js';
 
 /**
  * The global fine-tune parameters.
@@ -167,6 +178,19 @@ export interface AppState {
    */
   view: { transform: Matrix2D };
 
+  /**
+   * Undo history over the design (spec 9.3).
+   *
+   * Only genuine design decisions are tracked. View preferences -- teeth
+   * opacity, the lip-mask toggle, the current selection -- are deliberately
+   * excluded: undo should step back through what the clinician *designed*, not
+   * change how they happen to be looking at it.
+   */
+  history: History<DesignSnapshot>;
+
+  /** Open undo batches. Zero means each change pushes its own entry. */
+  undoBatchDepth: number;
+
   /** Report header fields (spec 8.1). Not design inputs -- purely metadata. */
   report: {
     patientName: string;
@@ -219,6 +243,18 @@ export interface AppState {
   /** Return the selected teeth to their computed placement. */
   resetSelection(): void;
   setMirrorMode(enabled: boolean): void;
+
+  /**
+   * Open an undo batch. Everything until `endUndoBatch` collapses into the one
+   * entry pushed here, so a slider drag is one undo step and not one per pixel
+   * (spec 9.3).
+   */
+  startUndoBatch(): void;
+  endUndoBatch(): void;
+  undo(): void;
+  redo(): void;
+  canUndo(): boolean;
+  canRedo(): boolean;
   /**
    * Mark the start of a slider drag. Everything until `endParamDrag` is one
    * user action and must collapse into a single undo entry (spec 9.3).
@@ -259,6 +295,54 @@ const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
   report: () => ({}),
 };
 
+/**
+ * The part of the design that undo tracks.
+ *
+ * Deliberately not the whole design slice: `teethOpacity`, `lipMask` and
+ * `selection` are how the clinician is *looking* at the design, not decisions
+ * about it, and stepping back through them would be surprising.
+ */
+export interface DesignSnapshot {
+  templateId: string | null;
+  params: FineTuneParams;
+  edits: ToothEdits;
+}
+
+const snapshotOf = (design: AppState['design']): DesignSnapshot => ({
+  templateId: design.templateId,
+  params: { ...design.params },
+  edits: { ...design.edits },
+});
+
+/**
+ * Record a design change in the history.
+ *
+ * Every design mutation routes through here rather than each action deciding
+ * for itself, so an action cannot silently forget to be undoable. Inside an
+ * open batch this replaces the present instead of pushing, which is what makes
+ * a slider drag one entry rather than one per value (spec 9.3).
+ */
+function record(
+  state: AppState,
+  design: AppState['design'],
+): Pick<AppState, 'design' | 'history'> {
+  const snapshot = snapshotOf(design);
+
+  // Outside a batch: push the state *before* this change onto the past, then
+  // advance the present to the new one. Pushing alone would leave `present`
+  // stale, so the next undo would restore a value that was never live.
+  //
+  // Inside a batch: the entry was already pushed when the batch opened, so this
+  // only advances the present -- which is what collapses a whole drag into one
+  // undo step (spec 9.3).
+  const history =
+    state.undoBatchDepth > 0
+      ? replace(state.history, snapshot)
+      : replace(push(state.history, snapshotOf(state.design)), snapshot);
+
+  return { design, history };
+}
+
 export const useAppStore = create<AppState>()((set, get) => ({
   step: 'upload',
   unlockedSteps: new Set<Step>(['upload']),
@@ -279,12 +363,21 @@ export const useAppStore = create<AppState>()((set, get) => ({
     mirrorMode: true,
   },
   view: { transform: IDENTITY },
+  history: initHistory<DesignSnapshot>({
+    templateId: DEFAULT_TEMPLATE_ID,
+    params: { ...DEFAULT_PARAMS },
+    edits: {},
+  }),
+  undoBatchDepth: 0,
   report: { patientName: '', clinicName: '' },
   paramDragActive: false,
 
   goToStep(step) {
     if (!get().unlockedSteps.has(step)) return;
-    set({ step });
+    // Undoing across a step transition produces incoherent states -- a design
+    // whose facial references no longer exist -- so the history is dropped at
+    // the boundary (spec 9.3).
+    set((state) => ({ step, history: clearHistory(state.history) }));
   },
 
   unlockStep(step) {
@@ -429,27 +522,34 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // Natural canine means nothing on a Hollywood one. `invalidateAfter` cannot
     // do this: it only resets steps *after* its argument, never design's own
     // state, so the clearing has to be explicit.
-    set((state) => ({
-      design: { ...state.design, templateId, edits: {}, selection: [] },
-    }));
+    set((state) =>
+      record(state, { ...state.design, templateId, edits: {}, selection: [] }),
+    );
     get().invalidateAfter('design');
   },
 
   setParams(params) {
-    set((state) => ({
-      design: { ...state.design, params: clampParams({ ...state.design.params, ...params }) },
-    }));
+    set((state) =>
+      record(state, {
+        ...state.design,
+        params: clampParams({ ...state.design.params, ...params }),
+      }),
+    );
     get().invalidateAfter('design');
   },
 
   beginParamDrag() {
     // The drag is already open if the pointer went down and a key repeat
     // follows, so this is idempotent on purpose.
-    if (!get().paramDragActive) set({ paramDragActive: true });
+    if (get().paramDragActive) return;
+    set({ paramDragActive: true });
+    get().startUndoBatch();
   },
 
   endParamDrag() {
-    if (get().paramDragActive) set({ paramDragActive: false });
+    if (!get().paramDragActive) return;
+    set({ paramDragActive: false });
+    get().endUndoBatch();
   },
 
   setTeethOpacity(opacity) {
@@ -536,7 +636,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       }
     }
 
-    set((state) => ({ design: { ...state.design, edits: next } }));
+    set((state) => record(state, { ...state.design, edits: next }));
     // Edits are deltas on the fit, so nothing upstream is stale -- but the
     // report's snapshots are, and they regenerate on entry.
   },
@@ -549,14 +649,69 @@ export const useAppStore = create<AppState>()((set, get) => ({
       ? selection.flatMap((t) => [t, mirrorOf(t)])
       : selection;
 
-    set((state) => ({
-      design: { ...state.design, edits: clearEdits(state.design.edits, affected) },
-    }));
+    set((state) =>
+      record(state, {
+        ...state.design,
+        edits: clearEdits(state.design.edits, affected),
+      }),
+    );
   },
 
   setMirrorMode(enabled) {
     set((state) => ({ design: { ...state.design, mirrorMode: enabled } }));
   },
+
+  /*
+   * Undo batching (spec 9.3).
+   *
+   * `startUndoBatch` records the state *before* the action. Every change while
+   * the batch is open replaces the present rather than pushing, so the whole
+   * gesture -- a slider drag, a template import, a run of nudges -- collapses
+   * into that single entry.
+   */
+  startUndoBatch() {
+    if (get().undoBatchDepth > 0) {
+      // Nested batches share the outermost one, so a compound action that calls
+      // several batched operations still produces exactly one undo entry.
+      set((state) => ({ undoBatchDepth: state.undoBatchDepth + 1 }));
+      return;
+    }
+    set((state) => ({
+      undoBatchDepth: 1,
+      history: push(state.history, snapshotOf(state.design)),
+    }));
+  },
+
+  endUndoBatch() {
+    set((state) => ({
+      undoBatchDepth: Math.max(0, state.undoBatchDepth - 1),
+    }));
+  },
+
+  undo() {
+    const { history } = get();
+    if (!canUndo(history)) return;
+
+    const next = undo(history);
+    set((state) => ({
+      history: next,
+      design: { ...state.design, ...next.present, selection: [] },
+    }));
+  },
+
+  redo() {
+    const { history } = get();
+    if (!canRedo(history)) return;
+
+    const next = redo(history);
+    set((state) => ({
+      history: next,
+      design: { ...state.design, ...next.present, selection: [] },
+    }));
+  },
+
+  canUndo: () => canUndo(get().history),
+  canRedo: () => canRedo(get().history),
 
   setReportField(field, value) {
     set((state) => ({ report: { ...state.report, [field]: value } }));
@@ -564,9 +719,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   resetParams() {
-    set((state) => ({
-      design: { ...state.design, params: { ...DEFAULT_PARAMS } },
-    }));
+    set((state) =>
+      record(state, { ...state.design, params: { ...DEFAULT_PARAMS } }),
+    );
     get().invalidateAfter('design');
   },
 }));
