@@ -20,6 +20,7 @@ import {
   type FaceFrame,
   type FacialReferences,
 } from '../domain/faceFrame.js';
+import { DEFAULT_TEMPLATE_ID } from '../domain/templates/buildTemplate.js';
 
 /** The five global fine-tune parameters (spec 6.4). */
 export interface FineTuneParams {
@@ -155,7 +156,11 @@ const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
   matching: () => ({}),
   analysis: () => ({ face: { refs: null, frame: null, error: null } }),
   design: (state) => ({
-    design: { ...state.design, templateId: null, params: { ...DEFAULT_PARAMS } },
+    design: {
+      ...state.design,
+      templateId: DEFAULT_TEMPLATE_ID,
+      params: { ...DEFAULT_PARAMS },
+    },
   }),
   report: () => ({}),
 };
@@ -168,7 +173,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   selectedTeeth: [],
 
   face: { refs: null, frame: null, error: null },
-  design: { templateId: null, params: { ...DEFAULT_PARAMS } },
+  design: { templateId: DEFAULT_TEMPLATE_ID, params: { ...DEFAULT_PARAMS } },
   view: { transform: IDENTITY },
 
   goToStep(step) {

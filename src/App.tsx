@@ -1,6 +1,7 @@
 import { StepNav } from './features/StepNav.js';
 import { UploadStep } from './features/upload/UploadStep.js';
 import { AnalysisStep } from './features/analysis/AnalysisStep.js';
+import { DesignStep } from './features/design/DesignStep.js';
 import { useAppStore } from './state/store.js';
 
 /**
@@ -20,7 +21,8 @@ export function App() {
       <main className="app__main">
         {step === 'upload' && <UploadStep />}
         {step === 'analysis' && <AnalysisStep />}
-        {step !== 'upload' && step !== 'analysis' && (
+        {step === 'design' && <DesignStep />}
+        {step !== 'upload' && step !== 'analysis' && step !== 'design' && (
           <p className="placeholder">Step: {step}</p>
         )}
       </main>
