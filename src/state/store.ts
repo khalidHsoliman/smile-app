@@ -328,6 +328,8 @@ export interface AppState {
   restoreCase(saved: StoredCase): void;
   /** Discard the working case and start over. */
   clearCase(): void;
+  /** Load the built-in synthetic demo case. */
+  loadDemoCase(): Promise<void>;
   /**
    * Mark the start of a slider drag. Everything until `endParamDrag` is one
    * user action and must collapse into a single undo entry (spec 9.3).
@@ -1117,6 +1119,18 @@ export const useAppStore = create<AppState>()((set, get) => ({
         step: unlocked.has(state.step) ? state.step : 'design',
       };
     });
+  },
+
+  async loadDemoCase() {
+    const { buildDemoCase } = await import('../features/demo/demoCase.js');
+    const demo = await buildDemoCase();
+
+    get().clearCase();
+    get().setPhoto('smile', demo.smile);
+    get().setPhoto('retracted', demo.retracted);
+    // The anterior six: the usual treatment zone, and what the demo designs.
+    get().setSelectedTeeth([6, 7, 8, 9, 10, 11]);
+    set({ report: { patientName: 'Demo case', clinicName: '' } });
   },
 
   setReportField(field, value) {
