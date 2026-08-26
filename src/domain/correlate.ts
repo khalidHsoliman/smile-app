@@ -22,6 +22,99 @@ export interface Shift {
 }
 
 /**
+ * Find where a small `template` sits inside a larger `search` image.
+ *
+ * This is the shape template matching actually needs, and getting it wrong is
+ * what made the refinement fail on a real case: searching two *equally sized*
+ * windows means every candidate shift throws away that much overlap, so a
+ * genuine offset of half the window height leaves almost nothing to correlate
+ * -- and if the feature is not in the second window at all, there is nothing to
+ * find. A tight template over a generously padded search area has the whole
+ * template available at every candidate position.
+ *
+ * Returns the template's top-left position within `search`, in search pixels.
+ */
+export function matchTemplate(
+  template: Float32Array,
+  tw: number,
+  th: number,
+  search: Float32Array,
+  sw: number,
+  sh: number,
+  step = 2,
+): { x: number; y: number; score: number } {
+  let best = { x: 0, y: 0, score: -Infinity };
+  const maxX = sw - tw;
+  const maxY = sh - th;
+  if (maxX < 0 || maxY < 0) return best;
+
+  const sweep = (x0: number, y0: number, x1: number, y1: number, s: number) => {
+    for (let y = Math.max(0, y0); y <= Math.min(maxY, y1); y += s) {
+      for (let x = Math.max(0, x0); x <= Math.min(maxX, x1); x += s) {
+        const score = correlateAt(template, tw, th, search, sw, x, y);
+        if (score > best.score) best = { x, y, score };
+      }
+    }
+  };
+
+  sweep(0, 0, maxX, maxY, step);
+  if (step > 1) {
+    const coarse = { ...best };
+    sweep(coarse.x - step, coarse.y - step, coarse.x + step, coarse.y + step, 1);
+  }
+  return best;
+}
+
+/**
+ * Zero-mean normalized cross-correlation of the whole template against the
+ * window of `search` whose top-left corner is (ox, oy).
+ */
+function correlateAt(
+  template: Float32Array,
+  tw: number,
+  th: number,
+  search: Float32Array,
+  sw: number,
+  ox: number,
+  oy: number,
+): number {
+  const n = tw * th;
+  let sumT = 0;
+  let sumS = 0;
+
+  for (let y = 0; y < th; y++) {
+    const tRow = y * tw;
+    const sRow = (y + oy) * sw + ox;
+    for (let x = 0; x < tw; x++) {
+      sumT += template[tRow + x]!;
+      sumS += search[sRow + x]!;
+    }
+  }
+
+  const meanT = sumT / n;
+  const meanS = sumS / n;
+
+  let num = 0;
+  let varT = 0;
+  let varS = 0;
+
+  for (let y = 0; y < th; y++) {
+    const tRow = y * tw;
+    const sRow = (y + oy) * sw + ox;
+    for (let x = 0; x < tw; x++) {
+      const t = template[tRow + x]! - meanT;
+      const v = search[sRow + x]! - meanS;
+      num += t * v;
+      varT += t * t;
+      varS += v * v;
+    }
+  }
+
+  const denom = Math.sqrt(varT * varS);
+  return denom < 1e-6 ? -1 : num / denom;
+}
+
+/**
  * Find the (dx, dy) that best aligns `moving` onto `fixed`.
  *
  * Both buffers are `width * height` grayscale samples. The search is

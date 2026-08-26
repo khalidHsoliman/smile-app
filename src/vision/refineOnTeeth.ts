@@ -17,7 +17,7 @@
  * right peak, and the landmark fit provides it. This only ever nudges.
  */
 
-import { bestShift } from '../domain/correlate.js';
+import { matchTemplate } from '../domain/correlate.js';
 import type { Matrix2D, Rect, Vec2 } from '../domain/geometry.js';
 
 export interface Refinement {
@@ -26,6 +26,11 @@ export interface Refinement {
   dy: number;
   /** Correlation at the chosen shift, -1 to 1. */
   score: number;
+  /**
+   * Always true: the vertical offset is not auto-corrected, because the two
+   * photographs do not contain the information to choose it reliably.
+   */
+  verticalIsManual: boolean;
 }
 
 /**
@@ -54,22 +59,24 @@ export type RefineOutcome =
 const WORK_WIDTH = 180;
 
 /**
- * How far the refinement may move the alignment, as a share of mouth width.
+ * How far the search area extends beyond the template, as a share of the
+ * template's *width*.
  *
- * Generous, because the residual it corrects is a pitch difference between two
- * separate shots and that can be several millimetres at the mouth.
+ * Measured against width rather than height on purpose: a low smile line makes
+ * the template only a few pixels tall, and a proportional margin would leave
+ * almost nowhere to search -- exactly when the search is needed most, since a
+ * narrow mouth opening is also where a small pitch difference hides the teeth.
  */
-const MAX_SHIFT_FRACTION = 0.38;
+const SEARCH_MARGIN_FRACTION = 0.30;
 
 /**
  * Minimum correlation to accept.
  *
- * Lower than it would need to be for a loose window: with the template
- * restricted to the teeth, a spurious peak has far less to latch onto, so the
- * bar can come down without inviting the lip-boundary false positive that a
- * padded window produced.
+ * Modest, because the template is teeth-only: a spurious peak has far less to
+ * latch onto than it would in a window padded out with lip and skin, so the bar
+ * can come down without inviting the lip-boundary false positive.
  */
-const ACCEPT_SCORE = 0.38;
+const ACCEPT_SCORE = 0.35;
 
 /**
  * Refine `coarse` by correlating the two photos' teeth.
@@ -87,63 +94,101 @@ export function refineOnTeeth(
 ): RefineOutcome {
   if (aperture.length < 3) return { kind: 'unavailable' };
 
-  const box = mouthWindow(aperture);
-  if (box.width < 20 || box.height < 10) return { kind: 'unavailable' };
+  const template = mouthWindow(aperture);
+  if (template.width < 20 || template.height < 8) return { kind: 'unavailable' };
 
-  const scale = WORK_WIDTH / box.width;
-  const w = Math.max(8, Math.round(box.width * scale));
-  const h = Math.max(8, Math.round(box.height * scale));
+  const scale = WORK_WIDTH / template.width;
+  const tw = Math.max(8, Math.round(template.width * scale));
+  const th = Math.max(6, Math.round(template.height * scale));
 
-  // The smile photo's mouth, in its own pixels.
-  const fixed = enamelMap(smileImage, w, h, (ctx) => {
+  /*
+   * The search area is the template's region grown on every side.
+   *
+   * Sized from the *mouth width* rather than the template's own height, because
+   * the offset being hunted is a whole-mouth displacement and a low smile line
+   * gives a template only a few pixels tall -- padding proportionally would
+   * leave nowhere to search. This is the bug that produced "no clear teeth to
+   * match on" on a real case: the search window was the same narrow slit as the
+   * template, so the retracted photo's lower-sitting mouth simply was not
+   * inside it.
+   */
+  const margin = Math.max(10, Math.round(tw * SEARCH_MARGIN_FRACTION));
+  const sw = tw + margin * 2;
+  const sh = th + margin * 2;
+
+  // The smile photo's visible teeth: the template.
+  const fixed = enamelMap(smileImage, tw, th, (ctx) => {
     ctx.scale(scale, scale);
-    ctx.translate(-box.x, -box.y);
+    ctx.translate(-template.x, -template.y);
   });
 
   /*
    * The retracted photo warped into smile-photo space by the coarse transform,
-   * then cropped to the same window. Rasterising once and searching pure 2D
-   * translations is far cheaper than re-warping per candidate shift, and the
-   * residual we are hunting -- the pitch-induced offset -- is a translation.
+   * over the larger search area. Rasterising once and sliding the template is
+   * far cheaper than re-warping per candidate position, and the residual being
+   * corrected is a translation.
    */
-  const moving = enamelMap(retractedImage, w, h, (ctx) => {
-    ctx.scale(scale, scale);
-    ctx.translate(-box.x, -box.y);
-    ctx.transform(coarse.a, coarse.b, coarse.c, coarse.d, coarse.e, coarse.f);
-  }, retractedSize);
+  const search = enamelMap(
+    retractedImage,
+    sw,
+    sh,
+    (ctx) => {
+      ctx.translate(margin, margin);
+      ctx.scale(scale, scale);
+      ctx.translate(-template.x, -template.y);
+      ctx.transform(coarse.a, coarse.b, coarse.c, coarse.d, coarse.e, coarse.f);
+    },
+    retractedSize,
+  );
 
-  if (!fixed || !moving) return { kind: 'unavailable' };
+  if (!fixed || !search) return { kind: 'unavailable' };
 
   /*
-   * Both windows must actually contain teeth.
+   * Both sides must actually contain teeth. Score alone cannot tell "the teeth
+   * matched" from "something matched": a closed mouth still has a strong lip
+   * boundary, and one correlated at 0.44 against a tooth edge in testing.
+   */
+  /*
+   * Different bars, because the two windows are different things. The template
+   * *is* the mouth opening, so it should be mostly tooth -- a slack bar there
+   * let a closed mouth through in testing. The search area is mostly padding by
+   * construction, so real enamel is a small share of it and demanding a
+   * mouthful would reject good cases.
+   */
+  if (!hasEnamel(fixed, 0.1) || !hasEnamel(search, 0.01)) {
+    return { kind: 'no-teeth' };
+  }
+
+  const found = matchTemplate(fixed, tw, th, search, sw, sh);
+  if (found.score < ACCEPT_SCORE) return { kind: 'weak', score: found.score };
+
+  /*
+   * Horizontal only. This is a deliberate limit, not an omission.
    *
-   * Score alone cannot tell "the teeth matched" from "something matched": a
-   * closed mouth still has a strong lip boundary, and it correlated at 0.44
-   * against a tooth edge in testing -- comfortably past a score-only threshold,
-   * and it would have shifted a perfectly good alignment. Requiring enamel on
-   * both sides asks the question that actually matters.
-   */
-  if (!hasEnamel(fixed) || !hasEnamel(moving)) return { kind: 'no-teeth' };
-
-  const maxShift = Math.max(6, Math.round(w * MAX_SHIFT_FRACTION));
-  const shift = bestShift(fixed, moving, w, h, maxShift);
-
-  // A weak peak means the teeth did not lock -- heavy shadow, a blurred shot.
-  // Moving a correct alignment on a guess is worse than leaving it alone.
-  if (shift.score < ACCEPT_SCORE) return { kind: 'weak', score: shift.score };
-
-  /*
-   * Negated: `bestShift` reports the offset at which the moving image must be
-   * *sampled* to match the fixed one, which is the opposite of the translation
-   * that brings it into alignment. Returning it unnegated moved the retracted
-   * photo exactly twice as far wrong as leaving it alone.
+   * Sideways the tooth pattern is unambiguous: the interdental gaps are a
+   * barcode and the template locks onto them, so the correction is trustworthy.
+   *
+   * Vertically it is not. A smile photo shows a narrow band of tooth while the
+   * retracted view shows the whole crown, so a short template slides inside a
+   * tall one and matches nearly as well at many heights -- measured on
+   * synthetic pairs, a confident 55% match sat at a constant 38 px offset. That
+   * is a property of the two photographs, not of the search: the information
+   * needed to choose a height is genuinely not in the overlap. Tracing the
+   * incisal edge instead was tried and was worse -- unstable wherever the upper
+   * and lower arches meet without a clear dark gap.
+   *
+   * Applying a vertical correction that is confidently wrong is worse than
+   * applying none, because it looks deliberate. So the vertical is left to the
+   * clinician, who can see the design on the retracted photo in the design step
+   * and set it in two seconds -- and is told so.
    */
   return {
     kind: 'refined',
     refinement: {
-      dx: -shift.dx / scale,
-      dy: -shift.dy / scale,
-      score: shift.score,
+      dx: (margin - found.x) / scale,
+      dy: 0,
+      score: found.score,
+      verticalIsManual: true,
     },
   };
 }
@@ -151,14 +196,22 @@ export function refineOnTeeth(
 /**
  * Whether a window holds enough enamel-bright signal to register on.
  *
- * A few percent is enough -- teeth occupy a modest share of a padded mouth
- * window -- but a region with essentially none is a closed or shadowed mouth,
- * and nothing in it should be allowed to win a correlation search.
+ * The caller sets the bar, because the template and the search area are
+ * different shapes of problem.
+ *
+ * A known limitation, stated rather than papered over: this measures "bright
+ * and not very saturated", which skin also is, so it cannot reliably tell a
+ * closed mouth from an open one. It catches the clear cases -- deep shadow, a
+ * mouth filled with lip -- and lets ambiguous ones through. That is tolerable
+ * because the consequence shrank: the vertical is no longer auto-corrected, so
+ * the worst a spurious match can now do is shift the design sideways by a few
+ * pixels, which is visible and correctable. It would not have been tolerable
+ * when this gated a vertical guess.
  */
-function hasEnamel(map: Float32Array): boolean {
+function hasEnamel(map: Float32Array, fraction: number): boolean {
   let bright = 0;
-  for (let i = 0; i < map.length; i++) if (map[i]! > 120) bright++;
-  return bright / map.length > 0.03;
+  for (let i = 0; i < map.length; i++) if (map[i]! > 110) bright++;
+  return bright / map.length > fraction;
 }
 
 /**

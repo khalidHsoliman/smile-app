@@ -139,18 +139,14 @@ export function MatchingStep() {
             case 'refined': {
               const { dx, dy, score } = outcome.refinement;
               nudgeMatch(dx, dy);
-              const moved = Math.hypot(dx, dy);
-              note =
-                moved > 1
-                  ? `Refined on the teeth: moved ${moved.toFixed(0)} px (match ${(score * 100).toFixed(0)}%).`
-                  : `Teeth already aligned (match ${(score * 100).toFixed(0)}%).`;
+              note = `Teeth matched sideways (${(score * 100).toFixed(0)}%). Set the height with the nudge arrows on the Design step — the two photos show different amounts of tooth, so it cannot be judged automatically.`;
               break;
             }
             case 'weak':
-              note = `Could not lock onto the teeth (best match only ${(outcome.score * 100).toFixed(0)}%). Drag the overlay to line them up.`;
+              note = `Could not lock onto the teeth (best match only ${(outcome.score * 100).toFixed(0)}%). Drag the overlay here, or use the nudge arrows on the Design step.`;
               break;
             case 'no-teeth':
-              note = 'No clear teeth to match on. Drag the overlay to line them up.';
+              note = 'No clear teeth to match on. Drag the overlay here, or use the nudge arrows on the Design step.';
               break;
             default:
               break;
