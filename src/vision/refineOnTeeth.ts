@@ -163,9 +163,7 @@ export function refineOnTeeth(
    * construction, so real enamel is a small share of it and demanding a
    * mouthful would reject good cases.
    */
-  if (!hasEnamel(fixed, 0.1) || !hasEnamel(search, 0.01)) {
-    return { kind: 'no-teeth' };
-  }
+  if (!hasEnamel(fixed) || !hasEnamel(search)) return { kind: 'no-teeth' };
 
   const found = matchTemplate(fixed, tw, th, search, sw, sh);
   if (found.score < ACCEPT_SCORE) return { kind: 'weak', score: found.score };
@@ -220,24 +218,31 @@ export function refineOnTeeth(
 }
 
 /**
- * Whether a window holds enough enamel-bright signal to register on.
+ * Whether a window holds teeth.
  *
- * The caller sets the bar, because the template and the search area are
- * different shapes of problem.
- *
- * A known limitation, stated rather than papered over: this measures "bright
- * and not very saturated", which skin also is, so it cannot reliably tell a
- * closed mouth from an open one. It catches the clear cases -- deep shadow, a
- * mouth filled with lip -- and lets ambiguous ones through. That is tolerable
- * because the consequence shrank: the vertical is no longer auto-corrected, so
- * the worst a spurious match can now do is shift the design sideways by a few
- * pixels, which is visible and correctable. It would not have been tolerable
- * when this gated a vertical guess.
+ * Keyed on *contrast* rather than an absolute brightness, because enamel shade
+ * varies enormously -- a bleached tooth and a deeply yellowed one are far
+ * apart on any fixed scale, and a threshold that admits both also admits skin.
+ * What every mouth with teeth has in common is that the teeth are markedly
+ * brighter than the gum, lip and cavity around them; a closed mouth is
+ * comparatively uniform. Comparing a window's top decile against its own
+ * median asks that question directly and is indifferent to shade.
  */
-function hasEnamel(map: Float32Array, fraction: number): boolean {
-  let bright = 0;
-  for (let i = 0; i < map.length; i++) if (map[i]! > 110) bright++;
-  return bright / map.length > fraction;
+function hasEnamel(map: Float32Array): boolean {
+  if (map.length < 16) return false;
+
+  const sorted = Float32Array.from(map).sort();
+  const p50 = sorted[Math.floor(sorted.length * 0.5)]!;
+  const p90 = sorted[Math.floor(sorted.length * 0.9)]!;
+
+  /*
+   * A ratio, not a difference. The absolute numbers move with the weighting and
+   * with the shade; what holds across every mouth is that the bright decile
+   * stands well clear of the median. An absolute gap of 25 failed a real case
+   * by 0.1 of a unit -- the kind of margin that means the test was measuring
+   * the wrong thing.
+   */
+  return p90 >= 60 && (p50 <= 5 || p90 >= p50 * 1.35);
 }
 
 /**
@@ -328,20 +333,30 @@ function enamelMap(
       out[p] = 0;
       continue;
     }
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const saturation = max === 0 ? 0 : (max - min) / max;
-    const luma = 0.299 * r + 0.587 * g + 0.114 * b;
     /*
-     * The saturation penalty has to be steep enough to put skin well below
-     * enamel, not merely below it. Measured on a real-world pair: skin scored
-     * 121 against enamel's 220 at a gentler penalty -- close enough that when
-     * the retracted mouth sat lower and skin entered the top of the search
-     * window, the incisal-edge search picked the skin as its "first enamel
-     * band" and returned an offset wrong by 190 px. At this penalty the same
-     * skin scores about 95 against enamel's 218, and gum falls to zero.
+     * Redness, not saturation, is what separates enamel from everything around
+     * it. Skin, gum and lip are red-dominant -- red well above green -- while a
+     * tooth is yellow-dominant, with red and green close together and blue
+     * lower. Saturation cannot make that distinction: a yellowed tooth and
+     * light skin are both bright and moderately saturated, and under a penalty
+     * steep enough to reject skin, light skin actually outranked yellowed
+     * enamel (130 against 106). That inversion is why a patient with yellow
+     * teeth and a low smile line reported "no clear teeth to match on".
+     *
+     * Measured across shades: white enamel 218, ivory 200, yellowed 156, deep
+     * yellow 137 -- against light skin 85, a yellow-toned skin 116, tanned skin
+     * 26, and gum, lip and oral cavity at zero. The margin at the difficult end
+     * matters most: an earlier weighting put deep-yellow enamel at 87 and light
+     * skin at 83, four points apart, and a patient with yellowed teeth and a
+     * low smile line was told there were "no clear teeth to match on".
      */
-    out[p] = Math.max(0, luma - 450 * Math.max(0, saturation - 0.12));
+    const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+    // Skin, gum and lip are orange: red well above green. A tooth is yellow:
+    // red and green close, both well above blue. Penalising the first and
+    // rewarding the second separates them where brightness alone cannot.
+    const redness = r - g;
+    const yellowness = Math.max(0, g - b);
+    out[p] = Math.max(0, luma - 4 * redness + yellowness);
   }
 
   return out;
