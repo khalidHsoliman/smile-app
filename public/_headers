@@ -1,0 +1,28 @@
+# Cloudflare Pages response headers.
+#
+# The MediaPipe runtime and model are ~15 MB and change only when the
+# dependency is upgraded, so they are cached hard and forever. Vite fingerprints
+# its own assets, so those are safe to cache immutably too. Everything else --
+# index.html above all -- must revalidate, or a deploy leaves clients on stale
+# markup pointing at assets that no longer exist.
+
+/wasm/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/models/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*
+  Cache-Control: no-cache
+  # Patient photographs are decoded in this page. Deny framing outright so the
+  # tool cannot be embedded in someone else's document.
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  # The app makes no third-party requests by design -- MediaPipe is served from
+  # our own origin precisely so patient photos never involve a CDN. This states
+  # that as policy rather than leaving it to convention.
+  Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'none'

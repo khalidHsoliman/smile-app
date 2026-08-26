@@ -1,0 +1,7 @@
+# Single-page app: every unmatched path renders index.html.
+#
+# 200 rather than 301 so the client keeps the requested URL. Placed last so the
+# real files above it -- /wasm, /models, /assets -- are served directly; without
+# that ordering a missing WASM file would return HTML with a 200 and fail as an
+# opaque decode error rather than a clean 404.
+/*    /index.html   200
