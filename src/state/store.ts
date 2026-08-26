@@ -19,6 +19,7 @@ import {
   type PointPair,
 } from '../domain/similarity.js';
 import { suggestFitParams } from '../domain/suggestParams.js';
+import { isTrustworthyAlignment } from '../domain/autoMatch.js';
 import { IDENTITY, type Matrix2D } from '../domain/geometry.js';
 import { rotateBy, type QuarterTurns } from '../domain/imageOrientation.js';
 import {
@@ -683,8 +684,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
       transform = null;
     }
 
+    // A trustworthy automatic alignment confirms itself -- matching then
+    // unlocks analysis exactly the way every other step unlocks its successor,
+    // with no ritual click. Marginal fits and hand-placed pairs stay explicit.
+    const confirmed =
+      transform !== null && isTrustworthyAlignment(pairs, transform, error);
+
     set((state) => ({
-      matching: { ...state.matching, pairs, transform, error, confirmed: false },
+      matching: { ...state.matching, pairs, transform, error, confirmed },
     }));
     get().invalidateAfter('matching');
     get().syncMatchGate();

@@ -228,18 +228,33 @@ export function MatchingStep() {
         </svg>
       </div>
 
+      {/*
+        A trustworthy automatic alignment confirms itself and this row just
+        says so -- matching unlocks analysis the way every other step unlocks
+        its successor. The explicit button appears only when trust is not
+        earned: a marginal fit, an implausible scale, or hand-placed points,
+        whose tiny residuals prove nothing.
+      */}
       <div className="matching__actions">
-        <button
-          type="button"
-          className="matching__primary"
-          onClick={confirmMatch}
-          disabled={matching.transform === null}
-        >
-          Use this alignment
-        </button>
-        <button type="button" onClick={skipMatch}>
-          Skip — design on the smile photo only
-        </button>
+        {matching.confirmed && matching.transform ? (
+          <span className="matching__accepted">
+            ✓ Alignment accepted — continue to Facial Analysis
+          </span>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="matching__primary"
+              onClick={confirmMatch}
+              disabled={matching.transform === null}
+            >
+              Use this alignment
+            </button>
+            <button type="button" onClick={skipMatch}>
+              Skip — design on the smile photo only
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

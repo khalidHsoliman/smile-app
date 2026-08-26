@@ -10,6 +10,7 @@ import { TemplatePicker } from './TemplatePicker.js';
 import { ParamSliders } from './ParamSliders.js';
 import { ToothEditor } from './ToothEditor.js';
 import { ShadePicker } from './ShadePicker.js';
+import { RetractedReference } from './RetractedReference.js';
 import { UndoControls } from './UndoControls.js';
 import { ToothLayer } from './ToothLayer.js';
 
@@ -94,6 +95,7 @@ export function DesignStep() {
   return (
     <div className="step step--design">
       <div className="design">
+        <div className="design__left">
         <div className="design__stage">
           <svg
             className="design__svg"
@@ -130,6 +132,14 @@ export function DesignStep() {
               />
             )}
           </svg>
+        </div>
+
+        {/*
+          The anatomical truth beside the design: the clinician glances at the
+          patient's real teeth while shaping the new ones, instead of meeting
+          them again only in the report.
+        */}
+        <RetractedReference />
         </div>
 
         <aside className="design__panel">

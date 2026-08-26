@@ -624,3 +624,18 @@ body { margin: 0; }
   font-size: 0.78rem;
   cursor: pointer;
 }
+
+.matching__accepted { font-size: 0.8rem; color: #6bcf8f; }
+
+/* --- retracted reference --- */
+
+.design__left { display: grid; gap: 0.75rem; min-width: 0; align-content: start; }
+
+.reference { display: grid; gap: 0.3rem; }
+.reference__hint { font-style: normal; opacity: 0.55; font-weight: 400; font-size: 0.68rem; }
+.reference__svg {
+  width: 100%;
+  max-height: 11rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
