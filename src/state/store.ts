@@ -474,6 +474,27 @@ export const useAppStore = create<AppState>()((set, get) => ({
   unlockStep(step) {
     set((state) => {
       if (state.unlockedSteps.has(step)) return state;
+
+      /*
+       * A step can only open if the one before it is already open.
+       *
+       * Each gate checks its own exit condition and nothing else, so without
+       * this a later gate could open its successor while an earlier one was
+       * shut. That is how a hard refresh came to show Facial Analysis with no
+       * photo loaded at all: a restored case carried a confirmed alignment from
+       * an earlier session, syncMatchGate saw `confirmed` and opened analysis,
+       * and the fact that upload was unsatisfied never entered into it.
+       *
+       * Enforcing the chain here fixes every gate at once and makes the broken
+       * state unreachable, rather than adding a fourth guard that the fifth
+       * gate would then need too.
+       */
+      const index = stepIndex(step);
+      const previous = STEPS[index - 1];
+      if (previous !== undefined && !state.unlockedSteps.has(previous)) {
+        return state;
+      }
+
       return { unlockedSteps: new Set(state.unlockedSteps).add(step) };
     });
   },
