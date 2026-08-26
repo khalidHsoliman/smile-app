@@ -1,5 +1,0 @@
-# Demo photographs are not committed: they are a licensing decision for
-# whoever deploys the application, not part of the source. See README.md.
-*.jpg
-*.jpeg
-*.png

@@ -1,12 +1,19 @@
 # Demo case photos
 
-Drop two photographs here and a **Load the demo case** button appears on the
-upload step. Without them the button stays hidden and nothing else changes.
+Two photographs in `public/demo/` and a **Load the demo case** button appears on
+the upload step. Without them the button stays hidden and nothing else changes.
 
-    smile.jpg      frontal, natural smile, relaxed lips
-    retracted.jpg  the same patient, cheek retractors in place
+    public/demo/smile.png      frontal, natural smile, relaxed lips
+    public/demo/retracted.png  the same patient, cheek retractors in place
 
-`.jpeg` and `.png` work too.
+`.jpg` and `.jpeg` work too. This file lives with the source rather than in
+`public/` so it is not itself published.
+
+## The photographs shipped here
+
+They are committed, so they are published with the application. That was a
+deliberate decision by the rights holder, and anyone forking this repository is
+republishing them under their own responsibility, not under this one.
 
 ## Before you add them
 

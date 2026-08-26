@@ -3,15 +3,15 @@ import type { Photo } from '../../state/store.js';
 /**
  * A bundled demo case: a real smile and retracted pair, shipped with the app.
  *
- * The files are deliberately not in the repository. Demo imagery for a dental
- * tool is a licensing question before a technical one, and it is one only the
- * clinic can answer: a photograph's copyright comes from the photographer, but
- * an identifiable face carries the depicted person's own rights, and in a
- * clinical context implies their health data. So the application provides the
- * slot and whoever deploys it provides photographs they hold the rights to,
- * with a model release.
+ * Demo imagery for a dental tool is a licensing question before a technical
+ * one: a photograph's copyright comes from the photographer, but an
+ * identifiable face carries the depicted person's own rights, and in a clinical
+ * context implies their health data. The photographs shipped here are used with
+ * the rights holder's permission; anyone forking this repository is publishing
+ * them too and needs their own basis for that.
  *
- * Drop the two files in `public/demo/` and the button appears by itself:
+ * The files live in `public/demo/` and the button appears by itself when they
+ * are present:
  *
  *   public/demo/smile.jpg      -- frontal, natural smile, relaxed lips
  *   public/demo/retracted.jpg  -- same patient, cheek retractors in place
