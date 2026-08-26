@@ -1,0 +1,21 @@
+/*
+ * Cloudflare Workers deployment (static assets, no worker script).
+ *
+ * The dashboard's build runs `npm run build` then `npx wrangler deploy`, which
+ * reads this file. `single-page-application` is what replaces the classic
+ * Pages `_redirects` SPA rule: Workers asset-serving normalises `.html` and
+ * `/index` away, so a `/* -> /index.html 200` rule re-triggers itself and the
+ * deploy is rejected with an infinite-loop error. Declaring the fallback here
+ * serves real files (wasm, model, assets) directly and index.html for
+ * everything else, with no rule to loop.
+ *
+ * `_headers` in dist/ is still honoured as-is.
+ */
+{
+  "name": "smile-app",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
