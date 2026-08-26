@@ -72,6 +72,30 @@ export const MOUTH_APERTURE = [
   ...LOWER_LIP_UPPER_BORDER,
 ] as const;
 
+/**
+ * Mesh vertices used to align the retracted photo to the smile photo.
+ *
+ * Chosen from the *rigid upper face*: eye corners, the nose midline chain from
+ * nasion to tip, the alae, glabella and forehead. Everything below the nose is
+ * excluded on purpose -- the retractors displace the lips and cheeks, and the
+ * jaw usually sits differently between the two shots, so the chin and mouth
+ * would feed the fit exactly the deformation it must not learn.
+ *
+ * A subtlety that lowers the risk here: for *matching*, an index does not need
+ * its anatomical label to be correct. It needs to be the SAME mesh vertex in
+ * both photographs -- the model guarantees that by construction -- and to sit
+ * on a rigid part of the face. A vertex that turned out to be "bridge of nose,
+ * slightly left" rather than "nasion" would align just as well.
+ */
+export const MATCH_STABLE_INDICES = [
+  33, 133, 362, 263, // eye corners (outer/inner, both eyes)
+  10, // forehead midline
+  9, // glabella
+  168, 6, 197, 195, 5, // nose midline, nasion down to the supratip
+  1, // nose tip
+  48, 278, // nasal wings
+] as const;
+
 /** Point counts the model is known to emit. */
 export const LANDMARKS_WITH_IRIS = 478;
 export const LANDMARKS_WITHOUT_IRIS = 468;

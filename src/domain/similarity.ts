@@ -118,6 +118,58 @@ export function alignmentError(
 }
 
 /**
+ * Fit, then drop the pairs that disagree with the consensus and fit again.
+ *
+ * With many automatic correspondences, one or two are usually wrong -- the
+ * detector slid on a feature the retractors pulled, or found the wrong vertex
+ * entirely. Least squares lets a single bad pair bend the whole alignment, so
+ * pairs whose residual is far outside the median are discarded and the fit
+ * re-run on the rest.
+ *
+ * Trimming only engages with six or more pairs: below that, "the outlier" and
+ * "the fit" are not statistically separable and dropping anything is guessing.
+ */
+export function robustPairs(pairs: readonly PointPair[]): {
+  kept: PointPair[];
+  dropped: number;
+} {
+  if (pairs.length < 6) return { kept: [...pairs], dropped: 0 };
+
+  /*
+   * Iterated, because one pass is not enough: a gross outlier bends the first
+   * fit so badly that every residual inflates, the median with them, and a
+   * second, milder outlier hides inside the loosened threshold. Each round
+   * refits on the survivors, so the fit sharpens and previously masked
+   * outliers surface. Three rounds settles any realistic case.
+   */
+  let kept: PointPair[] = [...pairs];
+  for (let round = 0; round < 3; round++) {
+    const fit = fitSimilarity(kept);
+    const residuals = kept.map(({ source, target }) => {
+      const x = fit.a * source.x + fit.c * source.y + fit.e;
+      const y = fit.b * source.x + fit.d * source.y + fit.f;
+      return Math.hypot(x - target.x, y - target.y);
+    });
+
+    const median = [...residuals].sort((a, b) => a - b)[
+      Math.floor(residuals.length / 2)
+    ]!;
+
+    // The absolute floor stops trimming on already-clean data, where every
+    // residual is sub-pixel and 3x the median would discard half the points.
+    const threshold = Math.max(3 * median, 3);
+    const next = kept.filter((_, i) => residuals[i]! <= threshold);
+
+    // Never trim below a safe fit: if most points disagree, the data is bad
+    // and hiding that behind aggressive trimming would be lying about it.
+    if (next.length < 4 || next.length === kept.length) break;
+    kept = next;
+  }
+
+  return { kept, dropped: pairs.length - kept.length };
+}
+
+/**
  * Seed an alignment from the two images' sizes alone.
  *
  * Used before any points are placed: centres the retracted photo on the smile

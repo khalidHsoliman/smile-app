@@ -112,11 +112,23 @@ interface Sample {
   g: number;
   b: number;
   luma: number;
+  score: number;
 }
 
-/** Build the four tones from the enamel-like pixels in `pixels`. */
+/**
+ * Build the four tones from the enamel-like pixels in `pixels`.
+ *
+ * Selection is *relative*, not threshold-based. Fixed gates (originally
+ * luma > 70, saturation < 0.42) worked in even light but rejected every pixel
+ * of warm-lit or naturally yellowed teeth, so real photos silently fell back
+ * to the generic white default -- which is exactly the colour mismatch the
+ * sampler exists to prevent. Enamel cannot be defined by absolute numbers
+ * across cameras and lighting; what holds everywhere is that within the mouth
+ * it is the brightest, least-saturated tissue. So pixels are *scored* against
+ * each other and the top slice taken, whatever its absolute values are.
+ */
 function paletteFrom(pixels: ImageData): ToothPalette | null {
-  const candidates: Sample[] = [];
+  const scored: Sample[] = [];
   const data = pixels.data;
 
   for (let i = 0; i < data.length; i += 4) {
@@ -132,15 +144,30 @@ function paletteFrom(pixels: ImageData): ToothPalette | null {
     const saturation = max === 0 ? 0 : (max - min) / max;
     const luma = 0.299 * r + 0.587 * g + 0.114 * b;
 
-    // Enamel is bright and close to neutral. Lips and the oral cavity are
-    // either much darker or much more saturated toward red.
-    if (luma < 70 || saturation > 0.42) continue;
-    candidates.push({ r, g, b, luma });
+    // Loose gates only for the unambiguous: the dark oral cavity and heavily
+    // saturated lip/gum pixels. Everything else competes on score.
+    if (luma < 50 || saturation > 0.6) continue;
+
+    // Brightness rewarded, saturation beyond a mild enamel warmth penalised.
+    // The penalty weight is what separates warm enamel (kept) from gum and
+    // lip tissue at similar brightness (rejected).
+    scored.push({
+      r,
+      g,
+      b,
+      luma,
+      score: luma - 300 * Math.max(0, saturation - 0.12),
+    });
   }
 
   // Too few usable pixels means a closed or shadowed mouth -- better to keep
   // the default than to invent a colour from a handful of samples.
-  if (candidates.length < 40) return null;
+  if (scored.length < 40) return null;
+
+  // The top third by score is the enamel, whatever this photo's lighting did
+  // to its absolute values.
+  scored.sort((a, b) => b.score - a.score);
+  const candidates = scored.slice(0, Math.max(40, Math.floor(scored.length * 0.34)));
 
   candidates.sort((a, b) => a.luma - b.luma);
 

@@ -18,6 +18,7 @@ import {
   fitSimilarity,
   type PointPair,
 } from '../domain/similarity.js';
+import { suggestFitParams } from '../domain/suggestParams.js';
 import { IDENTITY, type Matrix2D } from '../domain/geometry.js';
 import { rotateBy, type QuarterTurns } from '../domain/imageOrientation.js';
 import {
@@ -502,6 +503,34 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // later step, so unlocking first would immediately be undone.
     get().invalidateAfter('analysis');
     get().syncAnalysisGate();
+
+    /*
+     * Seed the placement parameters from this photo's own mouth aperture.
+     *
+     * The invalidation above just reset the design to fixed defaults, which
+     * assume an average face; the aperture says where *this* mouth actually
+     * is, so scale and occlusalGap start there and the sliders begin as
+     * refinements rather than corrections. Applied after the reset, and as the
+     * new history baseline rather than an undoable action -- there is no
+     * previous design for undo to return to.
+     */
+    const { face } = get();
+    if (face.refs && face.frame) {
+      const suggested = suggestFitParams(face.refs, face.frame);
+      if (suggested) {
+        set((state) => {
+          const params = clampParams({ ...state.design.params, ...suggested });
+          return {
+            design: { ...state.design, params },
+            history: initHistory({
+              templateId: state.design.templateId,
+              params,
+              edits: { ...state.design.edits },
+            }),
+          };
+        });
+      }
+    }
   },
 
   /**

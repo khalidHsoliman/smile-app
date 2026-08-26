@@ -110,14 +110,14 @@ export interface FitResult {
  *
  * Sanity check at scale 1.0: central 8.5 x 10.6 mm, inter-canine span ~38 mm.
  */
-const CENTRAL_WIDTH_IN_FACE_UNITS = 0.25;
+export const CENTRAL_WIDTH_IN_FACE_UNITS = 0.25;
 
 /**
  * `occlusalGap` runs -100..+100 but means a modest vertical shift. This maps
  * the slider's full travel to about a third of a face unit either way, which
  * covers every plausible correction without the ends being useless.
  */
-const OCCLUSAL_GAP_SCALE = 0.0035;
+export const OCCLUSAL_GAP_SCALE = 0.0035;
 
 /**
  * Where the central incisal edge rests when `occlusalGap` is 0, in face units
@@ -132,7 +132,7 @@ const OCCLUSAL_GAP_SCALE = 0.0035;
  * of an average smile instead of leaving a sliver of tooth under the lip. The
  * occlusalGap slider moves freely either side of it.
  */
-const DEFAULT_INCISAL_DROP = 0.30;
+export const DEFAULT_INCISAL_DROP = 0.30;
 
 /**
  * `smileCurve` runs -5..+5. At +5 the arch drops noticeably at the corners;

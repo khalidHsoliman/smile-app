@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../state/store.js';
 import { orientedSize } from '../../domain/imageOrientation.js';
-import { deriveReferences } from '../../domain/deriveReferences.js';
-import { autoPointPairs, isPlausibleScale } from '../../domain/autoMatch.js';
-import { scaleOf } from '../../domain/similarity.js';
+import { isPlausibleScale } from '../../domain/autoMatch.js';
+import { robustPairs, scaleOf } from '../../domain/similarity.js';
+import { buildMatchPairs } from '../../vision/matchPairs.js';
 import { toSvgMatrix, vec, type Vec2 } from '../../domain/geometry.js';
 import { decodeForDetection, detectLandmarks } from '../../vision/faceLandmarker.js';
 
@@ -41,10 +41,13 @@ export function MatchingStep() {
   const retractedSize = retracted ? orientedSize(retracted, retracted.rotation) : null;
 
   /**
-   * Seed the alignment from both photos' facial landmarks.
+   * Seed the alignment from both photos' landmarks.
    *
-   * The correspondences come from eyes and nose only -- the retractors distort
-   * the lips, so lip landmarks would actively mislead the fit.
+   * Both photos go through the same face model, so index-for-index the two
+   * results are the same mesh vertices -- a dense set of correspondences with
+   * no clicking, restricted to the rigid upper face (the retractors deform
+   * everything below the nose). The outliers a detector inevitably produces
+   * are trimmed against the consensus before the pairs are adopted.
    */
   const autoAlign = useCallback(async () => {
     if (!smile || !retracted || !smileSize || !retractedSize) return;
@@ -58,14 +61,20 @@ export function MatchingStep() {
         decodeForDetection(retracted.url),
       ]);
 
-      const smileRefs = deriveReferences(await detectLandmarks(smileImage), smileSize);
-      const retractedRefs = deriveReferences(
-        await detectLandmarks(retractedImage),
-        retractedSize,
-      );
+      const smileLandmarks = await detectLandmarks(smileImage);
+      const retractedLandmarks = await detectLandmarks(retractedImage);
 
-      const pairs = autoPointPairs(retractedRefs, smileRefs);
-      setMatchPairs(pairs);
+      const raw = buildMatchPairs(
+        retractedLandmarks,
+        smileLandmarks,
+        retractedSize,
+        smileSize,
+      );
+      const { kept, dropped } = robustPairs(raw);
+      if (dropped > 0) {
+        setMessage(`${dropped} unreliable point${dropped > 1 ? 's' : ''} discarded.`);
+      }
+      setMatchPairs(kept);
       setStatus('auto');
     } catch (cause) {
       setStatus('failed');
