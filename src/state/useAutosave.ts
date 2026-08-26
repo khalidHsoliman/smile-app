@@ -94,6 +94,11 @@ export function useAutosave() {
           photos,
           selectedTeeth: s.selectedTeeth,
           refs: s.face.refs,
+          matching: {
+            pairs: s.matching.pairs,
+            nudge: s.matching.nudge,
+            confirmed: s.matching.confirmed,
+          },
           design: {
             templateId: s.design.templateId,
             params: s.design.params,

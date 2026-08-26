@@ -135,6 +135,12 @@ export const OCCLUSAL_GAP_SCALE = 0.0035;
 export const DEFAULT_INCISAL_DROP = 0.30;
 
 /**
+ * Vertical gap between the upper and lower incisal edges, in face units.
+ * Roughly 1.4 mm: enough that the rows read as occluding without overlapping.
+ */
+const INTER_ARCH_GAP = 0.04;
+
+/**
  * `smileCurve` runs -5..+5. At +5 the arch drops noticeably at the corners;
  * at -5 it reverses into the flat-or-reverse arc that spec 6.2 calls the most
  * common aesthetic failure. The unit is face-frame y per unit x squared.
@@ -361,11 +367,25 @@ function incisalY(
   const spee = params.smileCurve * CURVE_SCALE * x * x;
   const occlusal = params.occlusalGap * OCCLUSAL_GAP_SCALE;
 
-  // The upper arch hangs down from above the lip line and the lower rises from
-  // below, so the gull-wing and the curve mirror between them.
+  // The upper arch hangs down toward the lower lip and the lower arch rises
+  // from below it, so the gull-wing and the curve mirror between them.
   const towardGum = arch === 'upper' ? -1 : 1;
-  // The upper incisors show below the lip border; the lower arch sits above it.
-  const rest = arch === 'upper' ? DEFAULT_INCISAL_DROP : -DEFAULT_INCISAL_DROP;
+
+  /*
+   * Where each arch's incisal edge rests. The upper drops DEFAULT_INCISAL_DROP
+   * below the lip-line origin; the lower sits just below the upper's edge, at
+   * the occlusal plane.
+   *
+   * This was previously -DEFAULT_INCISAL_DROP -- a sign error that placed the
+   * lower arch's incisal edges ABOVE the upper lip, rendering an entire arch
+   * inside the lip near the nose. The lip mask clipped it in the smile view,
+   * so every visual check passed; the first unmasked retracted-view export
+   * showed a row of teeth under the patient's nose.
+   */
+  const rest =
+    arch === 'upper'
+      ? DEFAULT_INCISAL_DROP
+      : DEFAULT_INCISAL_DROP + INTER_ARCH_GAP;
 
   return towardGum * (gullWing + spee) + occlusal + rest;
 }

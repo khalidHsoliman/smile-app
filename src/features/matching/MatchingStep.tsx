@@ -25,6 +25,7 @@ export function MatchingStep() {
   const matching = useAppStore((s) => s.matching);
   const setMatchPairs = useAppStore((s) => s.setMatchPairs);
   const confirmMatch = useAppStore((s) => s.confirmMatch);
+  const nudgeMatch = useAppStore((s) => s.nudgeMatch);
   const skipMatch = useAppStore((s) => s.skipMatch);
 
   const [status, setStatus] = useState<Status>('idle');
@@ -34,6 +35,8 @@ export function MatchingStep() {
   const [pending, setPending] = useState<Vec2 | null>(null);
 
   const attempted = useRef(false);
+  /** Drag-in-progress on the overlay: distinguishes a nudge from a click. */
+  const dragState = useRef<{ last: Vec2; startX: number; startY: number; moved: boolean } | null>(null);
 
   const smile = photos.smile;
   const retracted = photos.retracted;
@@ -141,6 +144,9 @@ export function MatchingStep() {
           />
         </label>
 
+        {matching.transform && (
+          <span className="matching__hint">Drag the overlay until the teeth line up.</span>
+        )}
         <span className="matching__status">
           {matching.pairs.length} point{matching.pairs.length === 1 ? '' : 's'}
           {matching.transform && ` · ${matching.error.toFixed(1)}px error`}
@@ -156,14 +162,47 @@ export function MatchingStep() {
 
       {/*
         The overlay: the retracted photo transformed onto the smile photo at
-        partial opacity, which is the spec's fine-tuning view. Clicking here
-        completes a pair started on the retracted photo below.
+        partial opacity -- the spec's fine-tuning view (stage 3). Dragging it
+        nudges the alignment, which is the correction for what a similarity fit
+        cannot model: head pitch between the two shots moves the mouth relative
+        to the eyes, and only a human can say where the teeth should sit.
+        A plain click still completes a pair started on the photo below.
       */}
       <div className="matching__stage">
         <svg
           className="matching__svg"
           viewBox={`0 0 ${smileSize.width} ${smileSize.height}`}
-          onPointerDown={(event) => clickSmile(localPoint(event))}
+          onPointerDown={(event) => {
+            dragState.current = {
+              last: localPoint(event),
+              startX: event.clientX,
+              startY: event.clientY,
+              moved: false,
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            const drag = dragState.current;
+            if (!drag || event.buttons === 0) return;
+            // A few screen pixels of slack keeps an intended click from
+            // registering as a micro-drag.
+            if (!drag.moved) {
+              if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 5) return;
+              drag.moved = true;
+            }
+            const point = localPoint(event);
+            if (matching.transform) nudgeMatch(point.x - drag.last.x, point.y - drag.last.y);
+            drag.last = point;
+          }}
+          onPointerUp={(event) => {
+            const drag = dragState.current;
+            dragState.current = null;
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }
+            // No movement means it was a click: complete a pending point pair.
+            if (drag && !drag.moved) clickSmile(localPoint(event));
+          }}
         >
           <image href={smile.url} x={0} y={0} width={smileSize.width} height={smileSize.height} />
           {matching.transform && (

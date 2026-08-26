@@ -20,7 +20,14 @@ import {
 } from '../domain/similarity.js';
 import { suggestFitParams } from '../domain/suggestParams.js';
 import { isTrustworthyAlignment } from '../domain/autoMatch.js';
-import { IDENTITY, type Matrix2D } from '../domain/geometry.js';
+import {
+  IDENTITY,
+  compose,
+  translation,
+  vec,
+  type Matrix2D,
+  type Vec2,
+} from '../domain/geometry.js';
 import { rotateBy, type QuarterTurns } from '../domain/imageOrientation.js';
 import {
   computeFaceFrame,
@@ -152,6 +159,15 @@ export interface AppState {
     error: number;
     /** True once the clinician has accepted the alignment. */
     confirmed: boolean;
+    /**
+     * Manual fine-tune offset in smile-photo pixels, dragged on the overlay
+     * (spec 15 stage 3). Stored as an input; the transform is re-derived from
+     * pairs + nudge, never edited directly (spec 9.1). This is the escape
+     * valve for what a similarity fit cannot model -- head pitch between the
+     * two shots moves the mouth relative to the eyes, and only a human can say
+     * where the teeth should sit.
+     */
+    nudge: Vec2;
   };
 
   /**
@@ -252,6 +268,8 @@ export interface AppState {
   setMatchPairs(pairs: PointPair[]): void;
   /** Accept the current alignment and open the next step. */
   confirmMatch(): void;
+  /** Shift the fitted alignment by (dx, dy) smile-photo pixels. */
+  nudgeMatch(dx: number, dy: number): void;
   /** Skip alignment entirely -- valid when there is no retracted photo. */
   skipMatch(): void;
   /** Re-evaluate whether the matching step's exit condition is met. */
@@ -326,7 +344,7 @@ const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
   // consistent with the initial state.
   upload: () => ({ photos: { smile: null, retracted: null }, selectedTeeth: [] }),
   matching: () => ({
-    matching: { pairs: [], transform: null, error: 0, confirmed: false },
+    matching: { pairs: [], transform: null, error: 0, confirmed: false, nudge: vec(0, 0) },
   }),
   analysis: () => ({ face: { refs: null, frame: null, error: null } }),
   design: (state) => ({
@@ -398,7 +416,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   photos: { smile: null, retracted: null },
   selectedTeeth: [],
 
-  matching: { pairs: [], transform: null, error: 0, confirmed: false },
+  matching: { pairs: [], transform: null, error: 0, confirmed: false, nudge: vec(0, 0) },
   face: { refs: null, frame: null, error: null },
   design: {
     templateId: DEFAULT_TEMPLATE_ID,
@@ -690,11 +708,37 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const confirmed =
       transform !== null && isTrustworthyAlignment(pairs, transform, error);
 
-    set((state) => ({
-      matching: { ...state.matching, pairs, transform, error, confirmed },
+    set(() => ({
+      // New pairs are a fresh alignment; an old manual nudge belonged to the
+      // fit it corrected and would silently skew this one.
+      matching: { pairs, transform, error, confirmed, nudge: vec(0, 0) },
     }));
     get().invalidateAfter('matching');
     get().syncMatchGate();
+  },
+
+  nudgeMatch(dx, dy) {
+    const { pairs, nudge, transform } = get().matching;
+    if (transform === null) return;
+
+    let fitted: Matrix2D;
+    try {
+      fitted = fitSimilarity(pairs);
+    } catch {
+      return;
+    }
+
+    const next = vec(nudge.x + dx, nudge.y + dy);
+    set((state) => ({
+      matching: {
+        ...state.matching,
+        nudge: next,
+        transform: compose(fitted, translation(next.x, next.y)),
+      },
+    }));
+    // The nudge moves where the retracted overlay sits; the design lives in
+    // smile-photo coordinates and is untouched. Nothing is invalidated -- the
+    // report and the design-step reference derive from the live transform.
   },
 
   confirmMatch() {
@@ -904,6 +948,25 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // Re-run the gates so the restored case lands on the right step with the
     // right steps unlocked, rather than trusting a persisted flag.
     get().syncUploadGate();
+
+    // Replay the alignment *before* the references: setMatchPairs invalidates
+    // everything after matching, so restoring it afterwards would wipe them.
+    const savedMatch = saved.matching;
+    if (savedMatch) {
+      if (savedMatch.pairs.length >= 2) {
+        get().setMatchPairs(savedMatch.pairs);
+        if (savedMatch.nudge.x !== 0 || savedMatch.nudge.y !== 0) {
+          get().nudgeMatch(savedMatch.nudge.x, savedMatch.nudge.y);
+        }
+        if (savedMatch.confirmed && !get().matching.confirmed) {
+          get().confirmMatch();
+        }
+      } else if (savedMatch.confirmed) {
+        // A confirmed record with no pairs is a skipped alignment.
+        get().skipMatch();
+      }
+    }
+
     if (saved.refs) get().setFacialReferences(saved.refs);
   },
 
