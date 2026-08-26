@@ -670,3 +670,18 @@ body { margin: 0; }
 .zoom button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 12%, transparent); }
 .zoom button:disabled { opacity: 0.35; cursor: default; }
 .zoom__level { font-size: 0.68rem; opacity: 0.7; padding: 0 0.25rem; font-variant-numeric: tabular-nums; }
+
+.reference__nudge { display: flex; align-items: center; gap: 0.25rem; }
+.reference__nudgelabel { font-size: 0.7rem; opacity: 0.6; margin-right: 0.15rem; }
+.reference__nudge button {
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.reference__nudge button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }

@@ -4,14 +4,8 @@ import { fitArches } from '../../domain/fitting.js';
 import { applyEdits } from '../../domain/toothEdits.js';
 import { getTemplate } from '../../domain/templates/buildTemplate.js';
 import { lipBoxFrom } from '../../domain/lipBox.js';
-import {
-  applyMatrix,
-  applyMatrixToVector,
-  invert,
-  normalize,
-  type Rect,
-} from '../../domain/geometry.js';
-import { scaleOf } from '../../domain/similarity.js';
+import type { Rect } from '../../domain/geometry.js';
+import { alignedFaceFrame, withoutAperture } from '../../domain/alignedFrame.js';
 import { buildDesignSvg } from '../../export/designSvg.js';
 import { inlinePhoto, renderSnapshot } from '../../export/snapshot.js';
 
@@ -68,39 +62,11 @@ export function useSnapshots() {
 
   const smileSize = photos.smile;
 
-  /*
-   * The face frame expressed in the retracted photo's coordinates.
-   *
-   * The design is authored against the smile photo, so placing it on the
-   * retracted view means carrying the frame across the alignment: invert the
-   * matching transform (which maps retracted -> smile) and apply it to the
-   * frame's origin and axes.
-   */
-  const alignedFrame = useMemo(() => {
-    if (!frame || !matching.transform) return null;
-    const toRetracted = invert(matching.transform);
-    return {
-      ...frame,
-      origin: applyMatrix(toRetracted, frame.origin),
-      xAxis: normalize(applyMatrixToVector(toRetracted, frame.xAxis)),
-      yAxis: normalize(applyMatrixToVector(toRetracted, frame.yAxis)),
-      scale: frame.scale / scaleOf(matching.transform),
-    };
-  }, [frame, matching.transform]);
-
-  /*
-   * The references without the mouth aperture.
-   *
-   * The aperture is in smile-photo coordinates, so masking the retracted view
-   * with it would clip against the wrong mouth entirely. The key is omitted
-   * rather than set to undefined -- `exactOptionalPropertyTypes` treats those
-   * as different, and rightly so.
-   */
-  const alignedRefs = useMemo(() => {
-    if (!refs) return null;
-    const { mouthAperture: _omitted, ...rest } = refs;
-    return rest;
-  }, [refs]);
+  const alignedFrame = useMemo(
+    () => alignedFaceFrame(frame, matching.transform),
+    [frame, matching.transform],
+  );
+  const alignedRefs = useMemo(() => withoutAperture(refs), [refs]);
 
   /** The close-up crop, derived from the mouth aperture (spec 8.2). */
   const lipBox: Rect | null = useMemo(

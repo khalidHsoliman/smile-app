@@ -2,37 +2,43 @@ import { useMemo } from 'react';
 import { useAppStore } from '../../state/store.js';
 import { lipBoxFrom } from '../../domain/lipBox.js';
 import { applyMatrix, invert, type Rect } from '../../domain/geometry.js';
+import { alignedFaceFrame, withoutAperture } from '../../domain/alignedFrame.js';
+import type { FitResult } from '../../domain/fitting.js';
+import { ToothLayer } from './ToothLayer.js';
 
 /**
- * The retracted photograph as a reference beside the design.
+ * The retracted photograph beside the design, with the design on it.
  *
- * The retracted view is the anatomical truth -- the patient's real tooth
- * shapes and positions without the lips in the way -- and the design step is
- * where that truth is most useful: while nudging a tooth, the clinician wants
- * to glance at what actually exists. Until now the photo appeared only in the
- * report, which is after every decision it could have informed.
+ * Two jobs. It is the anatomical truth -- the patient's real tooth shapes
+ * without the lips in the way -- while they shape the new ones. And it is the
+ * only place the retracted alignment can actually be judged: this is exactly
+ * what the report's retracted "after" will show, so an alignment that is
+ * visibly off is visibly off *here*, where it can be corrected, rather than
+ * three steps later in a PDF.
  *
- * When an alignment exists, the view is cropped to the mouth: the smile
- * photo's lip box is carried through the inverse of the matching transform, so
- * the reference shows the teeth at a useful size instead of a whole face.
- * Without an alignment the full photo is shown -- a guessed crop that missed
- * the mouth would be worse than no crop.
+ * That is why the nudge controls live here rather than only in the matching
+ * step. Aligning two photographs against each other is guesswork until you can
+ * see the thing you are aligning them for.
  */
-export function RetractedReference() {
+export function RetractedReference({ fit }: { fit: FitResult | null }) {
   const retracted = useAppStore((s) => s.photos.retracted);
   const smile = useAppStore((s) => s.photos.smile);
   const refs = useAppStore((s) => s.face.refs);
+  const frame = useAppStore((s) => s.face.frame);
   const transform = useAppStore((s) => s.matching.transform);
+  const palette = useAppStore((s) => s.design.palette);
+  const nudgeMatch = useAppStore((s) => s.nudgeMatch);
 
-  const size = retracted;
+  const alignedFrame = useMemo(
+    () => alignedFaceFrame(frame, transform),
+    [frame, transform],
+  );
+  const alignedRefs = useMemo(() => withoutAperture(refs), [refs]);
 
   const crop: Rect | null = useMemo(() => {
-    if (!retracted || !size || !transform || !smile || !refs?.mouthAperture) {
-      return null;
-    }
+    if (!retracted || !transform || !smile || !refs?.mouthAperture) return null;
 
-    const smileSize = smile;
-    const box = lipBoxFrom(refs.mouthAperture, smileSize);
+    const box = lipBoxFrom(refs.mouthAperture, smile);
     if (!box) return null;
 
     // Carry the smile photo's lip box into retracted coordinates. The
@@ -58,37 +64,77 @@ export function RetractedReference() {
     return {
       x,
       y,
-      width: Math.min(w, size.width - x),
-      height: Math.min(h, size.height - y),
+      width: Math.min(w, retracted.width - x),
+      height: Math.min(h, retracted.height - y),
     };
-  }, [retracted, size?.width, size?.height, transform, smile, refs?.mouthAperture]);
+  }, [retracted, transform, smile, refs?.mouthAperture]);
 
-  if (!retracted || !size) return null;
+  if (!retracted) return null;
 
-  const view = crop ?? { x: 0, y: 0, width: size.width, height: size.height };
+  const view = crop ?? { x: 0, y: 0, width: retracted.width, height: retracted.height };
+  const showsDesign = fit !== null && alignedFrame !== null && alignedRefs !== null;
+
+  // One nudge step, scaled to the photo so it means the same thing on any
+  // resolution: about a third of a millimetre at the mouth.
+  const step = Math.max(1, Math.round(retracted.width / 500));
 
   return (
     <div className="reference">
       <span className="slider__name">
-        Retracted reference
+        Retracted view
         <em className="reference__hint">
-          {crop ? ' · cropped via the alignment' : ' · unaligned, full photo'}
+          {showsDesign
+            ? ' · this is the report’s “after”'
+            : crop
+              ? ' · reference only'
+              : ' · unaligned, full photo'}
         </em>
       </span>
+
       <svg
         className="reference__svg"
         viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`}
         preserveAspectRatio="xMidYMid meet"
-        aria-label="Retracted photograph, for reference"
+        aria-label="Retracted photograph with the design"
       >
         <image
           href={retracted.url}
           x={0}
           y={0}
-          width={size.width}
-          height={size.height}
+          width={retracted.width}
+          height={retracted.height}
         />
+        {showsDesign && (
+          <ToothLayer
+            fit={fit}
+            frame={alignedFrame}
+            refs={alignedRefs}
+            palette={palette}
+            opacity={0.85}
+            // The aperture belongs to the smile photo, so masking here would
+            // clip against the wrong mouth. The retractors expose the whole
+            // arch anyway, which is the point of the view.
+            masked={false}
+          />
+        )}
       </svg>
+
+      {/*
+        The nudge signs are inverted on purpose. `nudgeMatch` shifts the
+        transform that maps retracted -> smile, and the design is drawn through
+        that transform's *inverse*, so a positive nudge moves the design the
+        negative way on this view. The buttons are named for what the clinician
+        sees happen, not for the sign they pass.
+      */}
+      {showsDesign && (
+        <div className="reference__nudge">
+          <span className="reference__nudgelabel">Nudge design</span>
+          <button type="button" onClick={() => nudgeMatch(0, step)} title="Move the design up">↑</button>
+          <button type="button" onClick={() => nudgeMatch(0, -step)} title="Move the design down">↓</button>
+          <button type="button" onClick={() => nudgeMatch(step, 0)} title="Move the design left">←</button>
+          <button type="button" onClick={() => nudgeMatch(-step, 0)} title="Move the design right">→</button>
+        </div>
+      )}
     </div>
   );
 }

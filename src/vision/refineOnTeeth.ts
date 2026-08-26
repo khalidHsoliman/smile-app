@@ -29,6 +29,21 @@ export interface Refinement {
 }
 
 /**
+ * What the refinement did, or why it did nothing.
+ *
+ * Reported rather than swallowed. A silent `null` is indistinguishable from a
+ * refinement that ran and found nothing to correct, and that ambiguity cost a
+ * whole round-trip to diagnose: "still shifted" could have meant the search
+ * declined, or locked onto the wrong thing, or corrected nothing. The clinician
+ * now sees which.
+ */
+export type RefineOutcome =
+  | { kind: 'refined'; refinement: Refinement }
+  | { kind: 'no-teeth' }
+  | { kind: 'weak'; score: number }
+  | { kind: 'unavailable' };
+
+/**
  * Working resolution for the correlation, in pixels across the mouth.
  *
  * Tooth edges survive heavy downsampling -- they are the highest-contrast
@@ -38,8 +53,23 @@ export interface Refinement {
  */
 const WORK_WIDTH = 180;
 
-/** How far the refinement may move the alignment, as a share of mouth width. */
-const MAX_SHIFT_FRACTION = 0.22;
+/**
+ * How far the refinement may move the alignment, as a share of mouth width.
+ *
+ * Generous, because the residual it corrects is a pitch difference between two
+ * separate shots and that can be several millimetres at the mouth.
+ */
+const MAX_SHIFT_FRACTION = 0.38;
+
+/**
+ * Minimum correlation to accept.
+ *
+ * Lower than it would need to be for a loose window: with the template
+ * restricted to the teeth, a spurious peak has far less to latch onto, so the
+ * bar can come down without inviting the lip-boundary false positive that a
+ * padded window produced.
+ */
+const ACCEPT_SCORE = 0.38;
 
 /**
  * Refine `coarse` by correlating the two photos' teeth.
@@ -54,11 +84,11 @@ export function refineOnTeeth(
   retractedSize: { width: number; height: number },
   coarse: Matrix2D,
   aperture: readonly Vec2[],
-): Refinement | null {
-  if (aperture.length < 3) return null;
+): RefineOutcome {
+  if (aperture.length < 3) return { kind: 'unavailable' };
 
   const box = mouthWindow(aperture);
-  if (box.width < 20 || box.height < 10) return null;
+  if (box.width < 20 || box.height < 10) return { kind: 'unavailable' };
 
   const scale = WORK_WIDTH / box.width;
   const w = Math.max(8, Math.round(box.width * scale));
@@ -82,7 +112,7 @@ export function refineOnTeeth(
     ctx.transform(coarse.a, coarse.b, coarse.c, coarse.d, coarse.e, coarse.f);
   }, retractedSize);
 
-  if (!fixed || !moving) return null;
+  if (!fixed || !moving) return { kind: 'unavailable' };
 
   /*
    * Both windows must actually contain teeth.
@@ -93,14 +123,14 @@ export function refineOnTeeth(
    * and it would have shifted a perfectly good alignment. Requiring enamel on
    * both sides asks the question that actually matters.
    */
-  if (!hasEnamel(fixed) || !hasEnamel(moving)) return null;
+  if (!hasEnamel(fixed) || !hasEnamel(moving)) return { kind: 'no-teeth' };
 
-  const maxShift = Math.max(4, Math.round(w * MAX_SHIFT_FRACTION));
+  const maxShift = Math.max(6, Math.round(w * MAX_SHIFT_FRACTION));
   const shift = bestShift(fixed, moving, w, h, maxShift);
 
   // A weak peak means the teeth did not lock -- heavy shadow, a blurred shot.
   // Moving a correct alignment on a guess is worse than leaving it alone.
-  if (shift.score < 0.45) return null;
+  if (shift.score < ACCEPT_SCORE) return { kind: 'weak', score: shift.score };
 
   /*
    * Negated: `bestShift` reports the offset at which the moving image must be
@@ -108,7 +138,14 @@ export function refineOnTeeth(
    * that brings it into alignment. Returning it unnegated moved the retracted
    * photo exactly twice as far wrong as leaving it alone.
    */
-  return { dx: -shift.dx / scale, dy: -shift.dy / scale, score: shift.score };
+  return {
+    kind: 'refined',
+    refinement: {
+      dx: -shift.dx / scale,
+      dy: -shift.dy / scale,
+      score: shift.score,
+    },
+  };
 }
 
 /**
@@ -125,11 +162,19 @@ function hasEnamel(map: Float32Array): boolean {
 }
 
 /**
- * The search window: the mouth aperture, padded.
+ * The template window: the mouth aperture, barely padded.
  *
- * Padded because the aperture is drawn on the *smile* photo, and the retracted
- * view shows considerably more tooth than a relaxed smile does; too tight a
- * window would clip away the very features being matched.
+ * Tight on purpose, and this is the whole difference between a refinement that
+ * locks and one that declines. A generously padded window is dominated by lip
+ * and skin -- which is exactly what the retractors displace -- so the
+ * correlation was being asked to match mostly the thing that moved. The
+ * aperture is the *visible teeth* in the smile photo, and those same teeth are
+ * present (more fully exposed) in the retracted one, which makes them the only
+ * honest template.
+ *
+ * The retracted view showing more tooth than the template is not a problem:
+ * template matching finds a small patch inside a larger scene, and the extra
+ * exposed crown simply surrounds the match.
  */
 function mouthWindow(aperture: readonly Vec2[]): Rect {
   const xs = aperture.map((p) => p.x);
@@ -139,8 +184,8 @@ function mouthWindow(aperture: readonly Vec2[]): Rect {
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
 
-  const padX = (maxX - minX) * 0.12;
-  const padY = (maxY - minY) * 0.55;
+  const padX = (maxX - minX) * 0.04;
+  const padY = (maxY - minY) * 0.10;
 
   return {
     x: minX - padX,

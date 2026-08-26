@@ -121,21 +121,39 @@ export function MatchingStep() {
        * corrects that residual, and the maxillary teeth are rigid to the skull
        * so they are the right thing to register on.
        */
-      let refined = false;
+      let note = '';
       try {
         const smileRefs = deriveReferences(smileLandmarks, smileSize);
         const aperture = smileRefs.mouthAperture;
         if (aperture) {
-          const result = refineOnTeeth(
+          const outcome = refineOnTeeth(
             smileImage,
             retractedImage,
             retractedSize,
             fitSimilarity(kept),
             aperture,
           );
-          if (result && id === runId.current) {
-            nudgeMatch(result.dx, result.dy);
-            refined = Math.hypot(result.dx, result.dy) > 1;
+          if (id !== runId.current) return;
+
+          switch (outcome.kind) {
+            case 'refined': {
+              const { dx, dy, score } = outcome.refinement;
+              nudgeMatch(dx, dy);
+              const moved = Math.hypot(dx, dy);
+              note =
+                moved > 1
+                  ? `Refined on the teeth: moved ${moved.toFixed(0)} px (match ${(score * 100).toFixed(0)}%).`
+                  : `Teeth already aligned (match ${(score * 100).toFixed(0)}%).`;
+              break;
+            }
+            case 'weak':
+              note = `Could not lock onto the teeth (best match only ${(outcome.score * 100).toFixed(0)}%). Drag the overlay to line them up.`;
+              break;
+            case 'no-teeth':
+              note = 'No clear teeth to match on. Drag the overlay to line them up.';
+              break;
+            default:
+              break;
           }
         }
       } catch {
@@ -146,7 +164,7 @@ export function MatchingStep() {
       setMessage(
         [
           dropped > 0 ? `${dropped} unreliable point${dropped > 1 ? 's' : ''} discarded.` : '',
-          refined ? 'Refined on the teeth.' : '',
+          note,
         ]
           .filter(Boolean)
           .join(' ') || null,

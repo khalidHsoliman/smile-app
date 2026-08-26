@@ -164,7 +164,7 @@ export function DesignStep() {
           patient's real teeth while shaping the new ones, instead of meeting
           them again only in the report.
         */}
-        <RetractedReference />
+        <RetractedReference fit={fit} />
         </div>
 
         <aside className="design__panel">
