@@ -66,18 +66,34 @@ export function deriveReferences(
     ? at(IRIS_CENTER_IMAGE_LEFT)
     : midpoint(at(EYE_IMAGE_LEFT.inner), at(EYE_IMAGE_LEFT.outer));
 
-  // MediaPipe's left/right is the image's; ours is the patient's. They mirror.
   const lipCurve = UPPER_LIP_LOWER_BORDER.map(at);
   const mouthAperture = MOUTH_APERTURE.map(at);
 
+  /*
+   * Assign left and right by measured position, not by the index's label.
+   *
+   * Whether MediaPipe's "left" means the image's or the subject's has differed
+   * between versions and is exactly the sort of thing spec 5.3 warns not to
+   * trust. Measuring settles it: in a frontal photograph the patient's left is
+   * always at the larger image x, whichever index reported it. That also keeps
+   * the draggable handle labels honest -- a "Left pupil" handle that seeds onto
+   * the patient's right eye is a defect a clinician sees immediately.
+   */
+  const [rightPupil, leftPupil] = byImageX(imageRightPupil, imageLeftPupil);
+  const [rightAla, leftAla] = byImageX(at(ALA_IMAGE_RIGHT), at(ALA_IMAGE_LEFT));
+
   return {
-    leftPupil: imageRightPupil,
-    rightPupil: imageLeftPupil,
-    leftAla: at(ALA_IMAGE_RIGHT),
-    rightAla: at(ALA_IMAGE_LEFT),
+    leftPupil,
+    rightPupil,
+    leftAla,
+    rightAla,
     midlineTop: at(GLABELLA),
     midlineBottom: at(CHIN),
     lipCurve,
     mouthAperture,
   };
 }
+
+/** Order two points left-to-right in image space: [patient's right, left]. */
+const byImageX = (a: Vec2, b: Vec2): [Vec2, Vec2] =>
+  a.x <= b.x ? [a, b] : [b, a];

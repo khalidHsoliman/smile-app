@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from '../../state/store.js';
-import { orientedSize } from '../../domain/imageOrientation.js';
 import { fitArches } from '../../domain/fitting.js';
 import { applyEdits } from '../../domain/toothEdits.js';
 import { getTemplate } from '../../domain/templates/buildTemplate.js';
@@ -38,6 +37,7 @@ export function DesignStep() {
   const lipMask = useAppStore((s) => s.design.lipMask);
   const setLipMask = useAppStore((s) => s.setLipMask);
   const palette = useAppStore((s) => s.design.palette);
+  const paletteSampled = useAppStore((s) => s.design.paletteSampled);
   const edits = useAppStore((s) => s.design.edits);
   const selection = useAppStore((s) => s.design.selection);
   const toggleToothSelection = useAppStore((s) => s.toggleToothSelection);
@@ -61,6 +61,13 @@ export function DesignStep() {
   useEffect(() => {
     if (!photoUrl || !aperture || aperture.length < 3) return;
     if (sampledFor.current === photoUrl) return;
+    /*
+     * Never overwrite a shade the clinician chose by hand. Object URLs are
+     * recreated on every restore, so without this a reload re-sampled the
+     * photo and silently replaced a deliberate choice -- while the panel went
+     * on claiming the colour came from the photograph.
+     */
+    if (paletteSampled) return;
     sampledFor.current = photoUrl;
 
     let cancelled = false;
@@ -78,7 +85,7 @@ export function DesignStep() {
     return () => {
       cancelled = true;
     };
-  }, [photoUrl, aperture, setPalette]);
+  }, [photoUrl, aperture, paletteSampled, setPalette]);
 
   /*
    * The fit, then the manual deltas on top of it (spec 11.6). Two steps, not
@@ -95,7 +102,7 @@ export function DesignStep() {
     return <p className="placeholder">Complete the facial analysis first.</p>;
   }
 
-  const size = orientedSize(photo, photo.rotation);
+  const size = photo;   // already oriented: rotation is baked in
 
   return (
     <div className="step step--design">
@@ -134,7 +141,6 @@ export function DesignStep() {
                 y={0}
                 width={size.width}
                 height={size.height}
-                transform={photoTransform(photo.rotation, size)}
               />
               {fit && (
                 <ToothLayer
@@ -212,8 +218,3 @@ export function DesignStep() {
   );
 }
 
-/** Rotation is stored, not baked into the pixels -- see AnalysisStep. */
-function photoTransform(rotation: number, size: { width: number; height: number }): string {
-  if (rotation === 0) return '';
-  return `rotate(${rotation * 90} ${size.width / 2} ${size.height / 2})`;
-}

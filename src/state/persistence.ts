@@ -27,7 +27,12 @@ export interface StoredPhoto {
   blob: Blob;
   width: number;
   height: number;
-  rotation: QuarterTurns;
+  /**
+   * Legacy: rotation used to be carried beside the photo instead of baked into
+   * it. Cases saved then still have a value here; restore bakes it once. New
+   * saves never set it.
+   */
+  rotation?: QuarterTurns;
 }
 
 /**

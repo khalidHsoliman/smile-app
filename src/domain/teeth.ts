@@ -75,6 +75,19 @@ export function mirrorOf(universal: Universal): Universal {
   return isUpper(universal) ? 17 - universal : 49 - universal;
 }
 
+/**
+ * True for teeth on the patient's right of the midline.
+ *
+ * Upper right is universal 1-8; lower right is 25-32 -- note the asymmetry:
+ * the lower arch numbers run the opposite way round, so lower 17-24 are the
+ * patient's LEFT (FDI 31-38). Three call sites had hand-rolled this test and
+ * all three inherited the same inversion on the lower arch, rendering every
+ * lower tooth on the anatomically wrong side; centralised here, next to the
+ * FDI table that is the ground truth, and mirrored by `mirrorOf`.
+ */
+export const isPatientRight = (universal: Universal): boolean =>
+  isUpper(universal) ? universal <= 8 : universal >= 25;
+
 /** The central incisors of an arch -- the anchors arch fitting lays out from. */
 export const centralsOf = (arch: Arch): readonly [number, number] =>
   arch === 'upper' ? UPPER_CENTRALS : LOWER_CENTRALS;

@@ -184,6 +184,16 @@ function crossingOrNearest(
   const dp = signedDistance(p);
   const dq = signedDistance(q);
 
+  /*
+   * The segment lies exactly along the line -- both endpoints on the midline,
+   * reachable while dragging lip handles. `dp/(dp-dq)` would be 0/0 = NaN and
+   * propagate a NaN origin into every rendered tooth with no error raised, so
+   * the segment's own midpoint is taken instead.
+   */
+  if (dp === 0 && dq === 0) {
+    return { point: vec((p.x + q.x) / 2, (p.y + q.y) / 2), distance: 0 };
+  }
+
   // The segment straddles the line: interpolate to the exact crossing.
   if (dp === 0 || dq === 0 || dp * dq < 0) {
     const t = dp / (dp - dq);

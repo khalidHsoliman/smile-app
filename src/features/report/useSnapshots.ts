@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '../../state/store.js';
-import { orientedSize } from '../../domain/imageOrientation.js';
 import { fitArches } from '../../domain/fitting.js';
 import { applyEdits } from '../../domain/toothEdits.js';
 import { getTemplate } from '../../domain/templates/buildTemplate.js';
@@ -67,9 +66,7 @@ export function useSnapshots() {
     return { ...fitted, teeth: applyEdits(fitted.teeth, design.edits) };
   }, [template, selectedTeeth, design.params, design.edits]);
 
-  const smileSize = photos.smile
-    ? orientedSize(photos.smile, photos.smile.rotation)
-    : null;
+  const smileSize = photos.smile;
 
   /*
    * The face frame expressed in the retracted photo's coordinates.
@@ -147,11 +144,10 @@ export function useSnapshots() {
 
       const smileHref = await inlinePhoto(smile.url);
 
-      const withDesign = (photoHref: string, size: { width: number; height: number }, rotation: number, showDesign: boolean) =>
+      const withDesign = (photoHref: string, size: { width: number; height: number }, showDesign: boolean) =>
         buildDesignSvg({
           photoHref,
           size,
-          rotation,
           fit: showDesign ? fit : null,
           frame: showDesign ? frame : null,
           refs: showDesign ? refs : null,
@@ -162,8 +158,8 @@ export function useSnapshots() {
           masked: design.lipMask,
         });
 
-      const beforeSvg = withDesign(smileHref, smileSize, smile.rotation, false);
-      const afterSvg = withDesign(smileHref, smileSize, smile.rotation, true);
+      const beforeSvg = withDesign(smileHref, smileSize, false);
+      const afterSvg = withDesign(smileHref, smileSize, true);
 
       await capture('smileBefore', beforeSvg, smileSize);
       await capture('smileAfter', afterSvg, smileSize);
@@ -186,13 +182,12 @@ export function useSnapshots() {
        */
       const retracted = photos.retracted;
       if (retracted) {
-        const size = orientedSize(retracted, retracted.rotation);
+        const size = retracted;
         const href = await inlinePhoto(retracted.url);
 
         const plain = buildDesignSvg({
           photoHref: href,
           size,
-          rotation: retracted.rotation,
           fit: null,
           frame: null,
           refs: null,
@@ -206,7 +201,6 @@ export function useSnapshots() {
           const withTeeth = buildDesignSvg({
             photoHref: href,
             size,
-            rotation: retracted.rotation,
             fit,
             frame: alignedFrame,
             refs: alignedRefs ?? refs,

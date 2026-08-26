@@ -21,6 +21,34 @@ export type SaveState = 'idle' | 'saving' | 'saved' | 'failed' | 'unavailable';
  */
 const DEBOUNCE_MS = 1200;
 
+/**
+ * Identity of everything that gets persisted.
+ *
+ * Photos are compared by object URL rather than content: a URL changes exactly
+ * when the photo does, and hashing megabytes on every store update would cost
+ * more than the write it saves.
+ */
+function fingerprint(s: ReturnType<typeof useAppStore.getState>): string {
+  return JSON.stringify([
+    s.photos.smile?.url,
+    s.photos.retracted?.url,
+    s.selectedTeeth,
+    s.face.refs,
+    s.matching.pairs,
+    s.matching.nudge,
+    s.matching.confirmed,
+    s.design.templateId,
+    s.design.params,
+    s.design.palette,
+    s.design.paletteSampled,
+    s.design.edits,
+    s.design.teethOpacity,
+    s.design.lipMask,
+    s.design.mirrorMode,
+    s.report,
+  ]);
+}
+
 export function useAutosave() {
   const [state, setState] = useState<SaveState>('idle');
   const [restored, setRestored] = useState(false);
@@ -80,12 +108,7 @@ export function useAutosave() {
           if (!photo) continue;
           const blob = await loadPhotoBlob(photo.url);
           if (blob) {
-            photos[kind] = {
-              blob,
-              width: photo.width,
-              height: photo.height,
-              rotation: photo.rotation,
-            };
+            photos[kind] = { blob, width: photo.width, height: photo.height };
           }
         }
 
@@ -129,9 +152,23 @@ export function useAutosave() {
       timer.current = setTimeout(() => void write(), DEBOUNCE_MS);
     };
 
-    // Only the persisted slices should trigger a write. Subscribing to the
-    // whole store would save on every pointer move during a drag.
-    const unsubscribe = useAppStore.subscribe(schedule);
+    /*
+     * Only the persisted slices trigger a write.
+     *
+     * Subscribing to the whole store meant every pan, wheel tick, tooth
+     * selection and undo scheduled a save -- and each save re-fetches and
+     * rewrites both multi-megabyte photo blobs. Panning around the design
+     * produced a full IndexedDB write every 1.2 s while nothing persisted had
+     * changed. Comparing a cheap fingerprint of the saved slices first makes
+     * the writes match the meaning of "saved".
+     */
+    let previous = fingerprint(useAppStore.getState());
+    const unsubscribe = useAppStore.subscribe((state) => {
+      const next = fingerprint(state);
+      if (next === previous) return;
+      previous = next;
+      schedule();
+    });
 
     return () => {
       unsubscribe();

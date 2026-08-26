@@ -43,7 +43,7 @@ export async function loadPhoto(file: File): Promise<Photo> {
     throw new PhotoLoadError(`Image is too large: ${width} x ${height} px`);
   }
 
-  return { url: URL.createObjectURL(file), width, height, rotation: 0 };
+  return { url: URL.createObjectURL(file), width, height };
 }
 
 /**

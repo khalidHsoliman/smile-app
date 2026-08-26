@@ -7,10 +7,8 @@ import { ToothLayer } from '../features/design/ToothLayer.js';
 export interface DesignSvgOptions {
   /** The photo, already inlined as a data URI (see `inlinePhoto`). */
   photoHref: string;
-  /** Displayed photo size, after rotation. */
+  /** The photo's size. Rotation is baked into the pixels, so this is final. */
   size: { width: number; height: number };
-  /** Quarter turns applied to the photo. */
-  rotation: number;
   /** Omit the design entirely, for the "before" snapshot. */
   fit: FitResult | null;
   frame: FaceFrame | null;
@@ -33,8 +31,7 @@ export interface DesignSvgOptions {
  * stylesheet or an object URL.
  */
 export function buildDesignSvg(options: DesignSvgOptions): string {
-  const { photoHref, size, rotation, fit, frame, refs, palette, opacity, masked } =
-    options;
+  const { photoHref, size, fit, frame, refs, palette, opacity, masked } = options;
 
   const layer =
     fit && frame && refs
@@ -50,10 +47,6 @@ export function buildDesignSvg(options: DesignSvgOptions): string {
         )
       : '';
 
-  const transform =
-    rotation === 0
-      ? ''
-      : ` transform="rotate(${rotation * 90} ${size.width / 2} ${size.height / 2})"`;
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
@@ -61,7 +54,7 @@ export function buildDesignSvg(options: DesignSvgOptions): string {
     ` viewBox="0 0 ${size.width} ${size.height}">`,
     `<style>${TOOTH_STYLES}</style>`,
     `<image href="${photoHref}" xlink:href="${photoHref}"`,
-    ` x="0" y="0" width="${size.width}" height="${size.height}"${transform}/>`,
+    ` x="0" y="0" width="${size.width}" height="${size.height}"/>`,
     layer,
     `</svg>`,
   ].join('');

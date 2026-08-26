@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useAppStore } from '../../state/store.js';
-import { orientedSize } from '../../domain/imageOrientation.js';
 import { lipBoxFrom } from '../../domain/lipBox.js';
 import { applyMatrix, invert, type Rect } from '../../domain/geometry.js';
 
@@ -25,14 +24,14 @@ export function RetractedReference() {
   const refs = useAppStore((s) => s.face.refs);
   const transform = useAppStore((s) => s.matching.transform);
 
-  const size = retracted ? orientedSize(retracted, retracted.rotation) : null;
+  const size = retracted;
 
   const crop: Rect | null = useMemo(() => {
     if (!retracted || !size || !transform || !smile || !refs?.mouthAperture) {
       return null;
     }
 
-    const smileSize = orientedSize(smile, smile.rotation);
+    const smileSize = smile;
     const box = lipBoxFrom(refs.mouthAperture, smileSize);
     if (!box) return null;
 

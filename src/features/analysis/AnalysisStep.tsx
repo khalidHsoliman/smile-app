@@ -3,7 +3,6 @@ import { useZoom } from '../view/useZoom.js';
 import { ZoomControls } from '../view/ZoomControls.js';
 import { vec } from '../../domain/geometry.js';
 import { useAppStore } from '../../state/store.js';
-import { orientedSize } from '../../domain/imageOrientation.js';
 import { deriveReferences } from '../../domain/deriveReferences.js';
 import type { FacialReferences } from '../../domain/faceFrame.js';
 import { decodeForDetection, detectLandmarks } from '../../vision/faceLandmarker.js';
@@ -33,7 +32,7 @@ export function AnalysisStep() {
   const svgRef = useRef<SVGSVGElement>(null);
   const zoom = useZoom(svgRef);
 
-  const size = photo ? orientedSize(photo, photo.rotation) : null;
+  const size = photo;   // already oriented: rotation is baked in
 
   const detect = useCallback(async () => {
     if (!photo || !size) return;
@@ -117,7 +116,6 @@ export function AnalysisStep() {
               y={0}
               width={size.width}
               height={size.height}
-              transform={photoTransform(photo.rotation, size)}
             />
             {refs && (
               <ReferenceOverlay
@@ -134,14 +132,3 @@ export function AnalysisStep() {
   );
 }
 
-/**
- * Rotation is stored, not baked into the pixels, so the `<image>` is rotated
- * about the centre of its *oriented* box. The landmark detector sees the same
- * rotated result, so references land in oriented-image coordinates throughout.
- */
-function photoTransform(rotation: number, size: { width: number; height: number }): string {
-  if (rotation === 0) return '';
-  const cx = size.width / 2;
-  const cy = size.height / 2;
-  return `rotate(${rotation * 90} ${cx} ${cy})`;
-}

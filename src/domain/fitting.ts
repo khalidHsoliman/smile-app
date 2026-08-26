@@ -12,7 +12,13 @@
 
 import { type Vec2, vec } from './geometry.js';
 import { resolveArchRuns } from './archRun.js';
-import { centralsOf, isUpper, type Arch, type Universal } from './teeth.js';
+import {
+  centralsOf,
+  isPatientRight,
+  isUpper,
+  type Arch,
+  type Universal,
+} from './teeth.js';
 import type { Template, ToothTemplate } from './templates/types.js';
 
 /**
@@ -203,6 +209,8 @@ function fitArch(
 
     // The inner edge of the next tooth to place, measured from the midline.
     let edge = 0;
+    // The previous tooth's placed width, for the monotonic-width clamp.
+    let previousWidth: number | null = null;
 
     for (const universal of side) {
       const tooth = template.teeth[universal];
@@ -229,7 +237,18 @@ function fitArch(
       // away from the viewer, so they present less width. A narrow arch turns
       // sooner and its corner teeth compress; a wide one presents them squarely.
       const turn = foreshortening(edge, centralWidth, archCurvature);
-      const width = tooth.width * centralWidth * redScale * turn;
+      const rawWidth = tooth.width * centralWidth * redScale * turn;
+
+      /*
+       * Widths must not increase moving away from the midline. RED applies only
+       * across the anterior six, so at a low proportion the first premolar's
+       * authored width could exceed the narrowed canine in front of it -- a
+       * visible bulge at the anterior/posterior junction. Clamping against the
+       * neighbour keeps the progression monotonic whatever the settings.
+       */
+      const width = Math.min(rawWidth, previousWidth ?? rawWidth);
+      const widthScale = width / tooth.width;
+      previousWidth = width;
       const lengthScale = lengthScaleFor(params.ratio, templateRatio);
 
       // Centre of this tooth, measured outward along the arch. Teeth stay in
@@ -240,7 +259,7 @@ function fitArch(
       placed.push({
         universal,
         position: vec(x, incisalY(x, tooth, centralWidth, params, arch)),
-        scaleX: centralWidth * redScale * turn,
+        scaleX: widthScale,
         // Template outlines are authored with +y toward the gum. For the upper
         // arch the gum is above the biting edge, which in face-frame terms
         // (y down) means negating. The lower arch's gum is below, so it keeps
@@ -248,7 +267,7 @@ function fitArch(
         scaleY: centralWidth * lengthScale * (isUpper(universal) ? -1 : 1),
         // Teeth splay outward along the arch; the further from the midline, the
         // more they rotate. Without this the arch reads as a flat row.
-        rotation: direction * splay(centreOffset, params),
+        rotation: direction * splay(centreOffset, params, arch),
         outline: tooth.outline,
         auxiliary: auxiliarySet.has(universal),
       });
@@ -263,12 +282,16 @@ function fitArch(
 /**
  * Which side of the midline a tooth sits on: -1 patient's right, +1 left.
  *
- * Upper 1-8 and lower 25-32 are the patient's right; the rest are their left.
+ * Delegates to teeth.ts. The previous inline test compared against
+ * centralsOf(arch)[0], assuming that entry is always the RIGHT central -- true
+ * for the upper arch (8) but not the lower, where [24, 25] starts with the
+ * LEFT central. Every lower tooth was assigned the wrong side, and the
+ * template mirroring carried the same inversion, so the render was
+ * self-consistently mirrored and looked plausible while being anatomically
+ * backwards.
  */
-function sideOf(universal: Universal, arch: Arch): -1 | 1 {
-  const [rightCentral] = centralsOf(arch);
-  return universal <= rightCentral ? -1 : 1;
-}
+const sideOf = (universal: Universal, _arch: Arch): -1 | 1 =>
+  isPatientRight(universal) ? -1 : 1;
 
 /** How many positions from the midline a tooth sits, 1 for a central. */
 function distanceFromMidline(universal: Universal, arch: Arch): number {
@@ -397,9 +420,14 @@ function incisalY(
  * the incisal curve at this tooth's position is its rotation. Ties the splay to
  * `smileCurve` rather than making it a separate invented parameter.
  */
-function splay(centreOffset: number, params: FitParams): number {
-  // Slope of the incisal curve at this tooth: d/dx of smileCurve * k * x^2.
-  const slope = 2 * params.smileCurve * CURVE_SCALE * centreOffset;
+function splay(centreOffset: number, params: FitParams, arch: Arch): number {
+  // Slope of the incisal curve at this tooth: d/dx of the curve incisalY
+  // draws. incisalY applies towardGum (-1 upper, +1 lower) to the quadratic,
+  // so the slope must carry the same sign -- without it the upper arch rotated
+  // against its own curve, fanning corner teeth the wrong way while the lower
+  // arch followed correctly.
+  const towardGum = arch === 'upper' ? -1 : 1;
+  const slope = towardGum * 2 * params.smileCurve * CURVE_SCALE * centreOffset;
   // `atan` turns the slope into the angle the curve makes with the horizontal,
   // which is exactly how far the tooth must turn to stay perpendicular to it.
   // Damped, because following the curve exactly over-rotates the corner teeth

@@ -28,7 +28,8 @@ import {
   type Matrix2D,
   type Vec2,
 } from '../domain/geometry.js';
-import { rotateBy, type QuarterTurns } from '../domain/imageOrientation.js';
+import { bakeRotation } from '../features/upload/bakeRotation.js';
+import type { QuarterTurns } from '../domain/imageOrientation.js';
 import {
   computeFaceFrame,
   type FaceFrame,
@@ -129,13 +130,20 @@ export function clampParams(params: FineTuneParams): FineTuneParams {
 
 export type PhotoKind = 'smile' | 'retracted';
 
+/**
+ * A photo, always the right way up.
+ *
+ * There is deliberately no rotation field: rotation is baked into the pixels
+ * when applied (see `features/upload/bakeRotation`), so `width` and `height`
+ * are always what the clinician sees and no consumer has to re-derive an
+ * oriented size. Carrying rotation as data leaked a coordinate system into
+ * every render site and four of them got it wrong.
+ */
 export interface Photo {
   /** Object URL for the decoded image. Revoked when replaced. */
   url: string;
   width: number;
   height: number;
-  /** Manual rotation in quarter turns, applied on top of EXIF (spec 3.1). */
-  rotation: QuarterTurns;
 }
 
 export interface AppState {
@@ -232,6 +240,8 @@ export interface AppState {
 
   /** Open undo batches. Zero means each change pushes its own entry. */
   undoBatchDepth: number;
+  /** Snapshot staged by an open batch, pushed on its first real change. */
+  pendingUndo: DesignSnapshot | null;
 
   /** Report header fields (spec 8.1). Not design inputs -- purely metadata. */
   report: {
@@ -253,8 +263,8 @@ export interface AppState {
   unlockStep(step: Step): void;
 
   setPhoto(kind: PhotoKind, photo: Photo | null): void;
-  /** Rotate a photo by `delta` quarter turns. Does not re-decode. */
-  rotatePhoto(kind: PhotoKind, delta: number): void;
+  /** Rotate a photo by `delta` quarter turns, baking it into the pixels. */
+  rotatePhoto(kind: PhotoKind, delta: number): Promise<void>;
   setSelectedTeeth(teeth: Universal[]): void;
   setViewTransform(transform: Matrix2D): void;
 
@@ -391,7 +401,7 @@ const snapshotOf = (design: AppState['design']): DesignSnapshot => ({
 function record(
   state: AppState,
   design: AppState['design'],
-): Pick<AppState, 'design' | 'history'> {
+): Pick<AppState, 'design' | 'history'> & { pendingUndo?: DesignSnapshot | null } {
   const snapshot = snapshotOf(design);
 
   // Outside a batch: push the state *before* this change onto the past, then
@@ -401,12 +411,19 @@ function record(
   // Inside a batch: the entry was already pushed when the batch opened, so this
   // only advances the present -- which is what collapses a whole drag into one
   // undo step (spec 9.3).
-  const history =
-    state.undoBatchDepth > 0
-      ? replace(state.history, snapshot)
-      : replace(push(state.history, snapshotOf(state.design)), snapshot);
+  if (state.undoBatchDepth > 0) {
+    // First change inside a batch commits the snapshot staged when it opened;
+    // later ones only advance the present, collapsing the gesture to one entry.
+    const history = state.pendingUndo
+      ? replace(push(state.history, state.pendingUndo), snapshot)
+      : replace(state.history, snapshot);
+    return { design, history, pendingUndo: null };
+  }
 
-  return { design, history };
+  return {
+    design,
+    history: replace(push(state.history, snapshotOf(state.design)), snapshot),
+  };
 }
 
 export const useAppStore = create<AppState>()((set, get) => ({
@@ -437,6 +454,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     edits: {},
   }),
   undoBatchDepth: 0,
+  pendingUndo: null,
   report: { patientName: '', clinicName: '' },
   paramDragActive: false,
 
@@ -490,18 +508,29 @@ export const useAppStore = create<AppState>()((set, get) => ({
     get().syncUploadGate();
   },
 
-  rotatePhoto(kind, delta) {
+  async rotatePhoto(kind, delta) {
     const photo = get().photos[kind];
     if (!photo) return;
 
-    set((state) => ({
-      photos: {
-        ...state.photos,
-        [kind]: { ...photo, rotation: rotateBy(photo.rotation, delta) },
-      },
-    }));
-    // Rotation changes the design surface, so everything downstream is stale.
+    let rotated: Photo;
+    try {
+      rotated = await bakeRotation(photo, delta);
+    } catch {
+      // Leave the photo as it was; a failed rotate must not lose the upload.
+      return;
+    }
+
+    set((state) => ({ photos: { ...state.photos, [kind]: rotated } }));
+    // Rotation changes the design surface, so everything downstream is stale...
     get().invalidateAfter('upload');
+    /*
+     * ...and then re-gate. Without this the rotate button re-locked every later
+     * step and nothing ever reopened them: the exit condition (a smile photo
+     * and a tooth selection) is still satisfied, but only setPhoto and
+     * setSelectedTeeth re-checked it, so a single rotate stranded the user on
+     * upload until they happened to re-toggle a tooth.
+     */
+    get().syncUploadGate();
   },
 
   setViewTransform(transform) {
@@ -883,15 +912,24 @@ export const useAppStore = create<AppState>()((set, get) => ({
       set((state) => ({ undoBatchDepth: state.undoBatchDepth + 1 }));
       return;
     }
+    /*
+     * The entry is only *staged* here, not pushed. A pointer-down on a slider
+     * opens a batch whether or not the value ends up changing, and pushing
+     * eagerly minted a phantom undo step and -- worse -- discarded the redo
+     * stack on a click that changed nothing. `record` pushes the staged
+     * snapshot on the first real change instead.
+     */
     set((state) => ({
       undoBatchDepth: 1,
-      history: push(state.history, snapshotOf(state.design)),
+      pendingUndo: snapshotOf(state.design),
     }));
   },
 
   endUndoBatch() {
     set((state) => ({
       undoBatchDepth: Math.max(0, state.undoBatchDepth - 1),
+      // A gesture that changed nothing leaves nothing behind.
+      pendingUndo: state.undoBatchDepth <= 1 ? null : state.pendingUndo,
     }));
   },
 
@@ -924,6 +962,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // Photos come back as Blobs; the object URLs are recreated here because a
     // persisted URL would be a dead reference (see `persistence.ts`).
     const photos: AppState['photos'] = { smile: null, retracted: null };
+    // Cases saved before rotation was baked still carry it; applied below.
+    const legacyRotations: Partial<Record<PhotoKind, QuarterTurns | undefined>> = {};
     for (const kind of ['smile', 'retracted'] as const) {
       const stored = saved.photos[kind];
       if (!stored) continue;
@@ -931,23 +971,17 @@ export const useAppStore = create<AppState>()((set, get) => ({
         url: URL.createObjectURL(stored.blob),
         width: stored.width,
         height: stored.height,
-        rotation: stored.rotation,
       };
+      legacyRotations[kind] = stored.rotation;
     }
 
-    set((state) => ({
+    set(() => ({
       photos,
       selectedTeeth: saved.selectedTeeth,
-      design: { ...state.design, ...saved.design, selection: [] },
       report: saved.report,
       // The frame is derived, never stored, so it is recomputed below from the
       // restored references (spec 9.1).
       face: { refs: null, frame: null, error: null },
-      history: initHistory({
-        templateId: saved.design.templateId,
-        params: saved.design.params,
-        edits: saved.design.edits,
-      }),
     }));
 
     // Re-run the gates so the restored case lands on the right step with the
@@ -973,6 +1007,37 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }
 
     if (saved.refs) get().setFacialReferences(saved.refs);
+
+    /*
+     * The saved design goes on LAST, and this ordering is the whole point.
+     *
+     * Replaying the alignment and the references above runs
+     * `invalidateAfter`, whose design resetter clears the template, the
+     * parameters and every per-tooth edit -- and `setFacialReferences` then
+     * seeds fresh parameters from the aperture. Applying the saved design
+     * first, as this did, meant every restore silently discarded the
+     * clinician's actual work behind a "Saved" indicator: the one bug that
+     * makes persistence worse than none.
+     *
+     * The history is re-initialised rather than pushed: a restored case is a
+     * new baseline, and undo must not step back into a state from a different
+     * session.
+     */
+    set((state) => ({
+      design: { ...state.design, ...saved.design, selection: [] },
+      history: initHistory({
+        templateId: saved.design.templateId,
+        params: saved.design.params,
+        edits: saved.design.edits,
+      }),
+    }));
+
+    // Legacy stored rotations are baked in afterwards, which re-runs the
+    // cascade for those cases only. New saves never reach this.
+    for (const kind of ['smile', 'retracted'] as const) {
+      const turns = legacyRotations[kind];
+      if (turns) void get().rotatePhoto(kind, turns);
+    }
   },
 
   clearCase() {

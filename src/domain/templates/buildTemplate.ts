@@ -12,7 +12,7 @@
  */
 
 import { vec, type Vec2 } from '../geometry.js';
-import { isUpper, mirrorOf, type Universal } from '../teeth.js';
+import { isPatientRight, isUpper, type Universal } from '../teeth.js';
 import type { Template, ToothTemplate } from './types.js';
 
 /**
@@ -365,8 +365,18 @@ function buildTooth(
 ): ToothTemplate {
   const p = proportions[toothType(universal)];
 
-  // Patient's right teeth (upper 1-8, lower 25-32) mirror the left ones.
-  const side: -1 | 1 = mirrorOf(universal) > universal ? -1 : 1;
+  /*
+   * Which side of the midline this tooth belongs to, for its asymmetric
+   * features (distal rounding, zenith offset, canine cusp-tip offset).
+   *
+   * `mirrorOf(u) > u` was the previous test and it inverts on the lower arch,
+   * where numbering runs the opposite way: lower 17-24 are the patient's LEFT
+   * but produced side=-1. That mirrored every lower outline. It cancelled
+   * against the identical inversion in fitting's sideOf, so the render looked
+   * self-consistent -- fixing either alone would have exposed it, which is why
+   * both are corrected together against the one shared predicate.
+   */
+  const side: -1 | 1 = isPatientRight(universal) ? -1 : 1;
   const { outline, incisalEdge, gingivalZenith } = buildOutline(p, side);
 
   return {

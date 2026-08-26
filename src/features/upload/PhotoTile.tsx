@@ -1,6 +1,5 @@
 import { useId, useRef, useState } from 'react';
 import { useAppStore, type PhotoKind } from '../../state/store.js';
-import { orientedSize, swapsAxes } from '../../domain/imageOrientation.js';
 import { ACCEPTED_TYPES, PhotoLoadError, loadPhoto } from './loadPhoto.js';
 
 interface PhotoTileProps {
@@ -44,7 +43,7 @@ export function PhotoTile({ kind, title, hint }: PhotoTileProps) {
     }
   }
 
-  const size = photo ? orientedSize(photo, photo.rotation) : null;
+  const size = photo;
 
   return (
     <section className="tile">
@@ -52,10 +51,10 @@ export function PhotoTile({ kind, title, hint }: PhotoTileProps) {
         <h2>{title}</h2>
         {photo && (
           <div className="tile__actions">
-            <button type="button" onClick={() => rotatePhoto(kind, -1)} title="Rotate left">
+            <button type="button" onClick={() => void rotatePhoto(kind, -1)} title="Rotate left">
               ⟲
             </button>
-            <button type="button" onClick={() => rotatePhoto(kind, 1)} title="Rotate right">
+            <button type="button" onClick={() => void rotatePhoto(kind, 1)} title="Rotate right">
               ⟳
             </button>
             <button type="button" onClick={() => setPhoto(kind, null)} title="Remove">
@@ -85,10 +84,8 @@ export function PhotoTile({ kind, title, hint }: PhotoTileProps) {
         {photo ? (
           <img
             className="tile__image"
-            data-quarter-turned={swapsAxes(photo.rotation) || undefined}
             src={photo.url}
             alt={title}
-            style={{ transform: `rotate(${photo.rotation * 90}deg)` }}
           />
         ) : (
           <span className="tile__placeholder">{busy ? 'Reading…' : hint}</span>

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../state/store.js';
-import { orientedSize } from '../../domain/imageOrientation.js';
 import { isPlausibleScale } from '../../domain/autoMatch.js';
 import { robustPairs, scaleOf } from '../../domain/similarity.js';
 import { buildMatchPairs } from '../../vision/matchPairs.js';
@@ -37,6 +36,13 @@ export function MatchingStep() {
   const [pending, setPending] = useState<Vec2 | null>(null);
 
   const attempted = useRef(false);
+  /**
+   * Guards a slow detection landing after the photos it ran on changed.
+   * Without it, rotating or swapping a photo mid-detection let the stale run
+   * install pairs computed from the old images -- and a consistent-but-wrong
+   * set fits with a small residual, so it could even auto-confirm (spec 11.2).
+   */
+  const runId = useRef(0);
   /** Drag-in-progress on the overlay: distinguishes a nudge from a click. */
   const dragState = useRef<{ last: Vec2; startX: number; startY: number; moved: boolean } | null>(null);
   const overlaySvgRef = useRef<SVGSVGElement>(null);
@@ -64,8 +70,8 @@ export function MatchingStep() {
 
   const smile = photos.smile;
   const retracted = photos.retracted;
-  const smileSize = smile ? orientedSize(smile, smile.rotation) : null;
-  const retractedSize = retracted ? orientedSize(retracted, retracted.rotation) : null;
+  const smileSize = smile;
+  const retractedSize = retracted;
 
   /**
    * Seed the alignment from both photos' landmarks.
@@ -79,6 +85,7 @@ export function MatchingStep() {
   const autoAlign = useCallback(async () => {
     if (!smile || !retracted || !smileSize || !retractedSize) return;
 
+    const id = ++runId.current;
     setStatus('detecting');
     setMessage(null);
 
@@ -97,6 +104,8 @@ export function MatchingStep() {
         retractedSize,
         smileSize,
       );
+      if (id !== runId.current) return; // superseded
+
       const { kept, dropped } = robustPairs(raw);
       if (dropped > 0) {
         setMessage(`${dropped} unreliable point${dropped > 1 ? 's' : ''} discarded.`);
@@ -104,6 +113,7 @@ export function MatchingStep() {
       setMatchPairs(kept);
       setStatus('auto');
     } catch (cause) {
+      if (id !== runId.current) return;
       setStatus('failed');
       setMessage(
         `${(cause as Error).message} Place matching points by hand instead.`,
