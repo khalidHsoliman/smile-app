@@ -444,8 +444,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (!get().unlockedSteps.has(step)) return;
     // Undoing across a step transition produces incoherent states -- a design
     // whose facial references no longer exist -- so the history is dropped at
-    // the boundary (spec 9.3).
-    set((state) => ({ step, history: clearHistory(state.history) }));
+    // the boundary (spec 9.3). The view resets too: fit-to-view on entry to
+    // every step, because steps have different natural framings (spec 7.3).
+    set((state) => ({
+      step,
+      history: clearHistory(state.history),
+      view: { transform: IDENTITY },
+    }));
   },
 
   unlockStep(step) {

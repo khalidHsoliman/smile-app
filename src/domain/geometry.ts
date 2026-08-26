@@ -117,6 +117,37 @@ export function invert(m: Matrix2D): Matrix2D {
 export const toSvgMatrix = (m: Matrix2D): string =>
   `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`;
 
+/**
+ * Zoom a view transform about a fixed point (spec 7.3).
+ *
+ * `point` is in the root viewBox space -- the cursor position -- and stays
+ * visually fixed while everything scales around it, which is what makes
+ * wheel-zoom feel anchored rather than drifting.
+ *
+ * Zooming out below 1 snaps to identity: identity IS fit-to-view here, since
+ * the stages size their viewBox to the photo. Zooming past `maxScale` clamps.
+ */
+export function zoomAbout(
+  view: Matrix2D,
+  point: Vec2,
+  factor: number,
+  maxScale = 10,
+): Matrix2D {
+  const target = view.a * factor;
+  if (target <= 1) return IDENTITY;
+  const f = target > maxScale ? maxScale / view.a : factor;
+
+  const about: Matrix2D = {
+    a: f,
+    b: 0,
+    c: 0,
+    d: f,
+    e: (1 - f) * point.x,
+    f: (1 - f) * point.y,
+  };
+  return compose(view, about);
+}
+
 export interface Rect {
   x: number;
   y: number;

@@ -11,6 +11,9 @@ import { ParamSliders } from './ParamSliders.js';
 import { ToothEditor } from './ToothEditor.js';
 import { ShadePicker } from './ShadePicker.js';
 import { RetractedReference } from './RetractedReference.js';
+import { useZoom } from '../view/useZoom.js';
+import { ZoomControls } from '../view/ZoomControls.js';
+import { vec } from '../../domain/geometry.js';
 import { UndoControls } from './UndoControls.js';
 import { ToothLayer } from './ToothLayer.js';
 
@@ -50,6 +53,8 @@ export function DesignStep() {
    * every render -- decoding and reading pixels is not free.
    */
   const sampledFor = useRef<string | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const zoom = useZoom(svgRef);
   const photoUrl = photo?.url ?? null;
   const aperture = refs?.mouthAperture;
 
@@ -98,40 +103,54 @@ export function DesignStep() {
         <div className="design__left">
         <div className="design__stage">
           <svg
+            ref={svgRef}
             className="design__svg"
             viewBox={`0 0 ${size.width} ${size.height}`}
             preserveAspectRatio="xMidYMid meet"
+            onPointerDown={(e) => void zoom.onPanDown(e)}
+            onPointerMove={(e) => void zoom.onPanMove(e)}
+            onPointerUp={(e) => void zoom.onPanUp(e)}
           >
-            <image
-              href={photo.url}
-              x={0}
-              y={0}
-              width={size.width}
-              height={size.height}
-              transform={photoTransform(photo.rotation, size)}
-            />
-            {/* Clicking away from a tooth clears the selection. */}
+            {/*
+              Clicking away from a tooth clears the selection. Outside the zoom
+              group on purpose -- it must cover the viewport at any zoom -- and
+              left-button only, so a middle-drag pan does not deselect.
+            */}
             <rect
               x={0}
               y={0}
               width={size.width}
               height={size.height}
               fill="transparent"
-              onPointerDown={() => setToothSelection([])}
+              onPointerDown={(e) => {
+                if (e.button === 0) setToothSelection([]);
+              }}
             />
-            {fit && (
-              <ToothLayer
-                fit={fit}
-                frame={frame}
-                refs={refs}
-                opacity={teethOpacity}
-                masked={lipMask}
-                palette={palette}
-                selection={selection}
-                onToothClick={toggleToothSelection}
+            {/* One transform for the photo and every overlay (spec 7.3). */}
+            <g transform={zoom.groupTransform}>
+              <image
+                href={photo.url}
+                x={0}
+                y={0}
+                width={size.width}
+                height={size.height}
+                transform={photoTransform(photo.rotation, size)}
               />
-            )}
+              {fit && (
+                <ToothLayer
+                  fit={fit}
+                  frame={frame}
+                  refs={refs}
+                  opacity={teethOpacity}
+                  masked={lipMask}
+                  palette={palette}
+                  selection={selection}
+                  onToothClick={toggleToothSelection}
+                />
+              )}
+            </g>
           </svg>
+          <ZoomControls centre={vec(size.width / 2, size.height / 2)} />
         </div>
 
         {/*

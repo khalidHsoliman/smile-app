@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useZoom } from '../view/useZoom.js';
+import { ZoomControls } from '../view/ZoomControls.js';
+import { vec } from '../../domain/geometry.js';
 import { useAppStore } from '../../state/store.js';
 import { orientedSize } from '../../domain/imageOrientation.js';
 import { deriveReferences } from '../../domain/deriveReferences.js';
@@ -27,6 +30,8 @@ export function AnalysisStep() {
 
   // Guards against a detection landing after the photo it ran on was replaced.
   const runId = useRef(0);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const zoom = useZoom(svgRef);
 
   const size = photo ? orientedSize(photo, photo.rotation) : null;
 
@@ -96,26 +101,34 @@ export function AnalysisStep() {
 
       <div className="analysis__stage">
         <svg
+          ref={svgRef}
           className="analysis__svg"
           viewBox={`0 0 ${size.width} ${size.height}`}
           preserveAspectRatio="xMidYMid meet"
+          onPointerDown={(e) => void zoom.onPanDown(e)}
+          onPointerMove={(e) => void zoom.onPanMove(e)}
+          onPointerUp={(e) => void zoom.onPanUp(e)}
         >
-          <image
-            href={photo.url}
-            x={0}
-            y={0}
-            width={size.width}
-            height={size.height}
-            transform={photoTransform(photo.rotation, size)}
-          />
-          {refs && (
-            <ReferenceOverlay
-              refs={refs}
-              size={size}
-              onChange={(next: FacialReferences) => setFacialReferences(next)}
+          {/* One transform for the photo and every overlay (spec 7.3). */}
+          <g transform={zoom.groupTransform}>
+            <image
+              href={photo.url}
+              x={0}
+              y={0}
+              width={size.width}
+              height={size.height}
+              transform={photoTransform(photo.rotation, size)}
             />
-          )}
+            {refs && (
+              <ReferenceOverlay
+                refs={refs}
+                size={size}
+                onChange={(next: FacialReferences) => setFacialReferences(next)}
+              />
+            )}
+          </g>
         </svg>
+        <ZoomControls centre={vec(size.width / 2, size.height / 2)} />
       </div>
     </div>
   );

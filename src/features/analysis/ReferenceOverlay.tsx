@@ -47,10 +47,18 @@ export function ReferenceOverlay({ refs, size, onChange }: ReferenceOverlayProps
 
   const unit = Math.max(size.width, size.height) / 130;
 
-  /** Pointer position in the SVG's own user units. */
+  /**
+   * Pointer position in this overlay's own user space.
+   *
+   * The CTM is taken from the group itself, not the root svg: the group's CTM
+   * includes every ancestor transform -- the pan/zoom wrapper above all -- so
+   * dragging a handle stays exact at any zoom. Mapping through the root's CTM
+   * would land the handle wherever the *unzoomed* photo used to be.
+   */
   const toLocal = useCallback((event: React.PointerEvent): Vec2 | null => {
-    const svg = groupRef.current?.ownerSVGElement;
-    const ctm = svg?.getScreenCTM();
+    const group = groupRef.current;
+    const svg = group?.ownerSVGElement;
+    const ctm = group?.getScreenCTM();
     if (!svg || !ctm) return null;
 
     const point = svg.createSVGPoint();

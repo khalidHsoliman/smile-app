@@ -6,6 +6,8 @@ import { robustPairs, scaleOf } from '../../domain/similarity.js';
 import { buildMatchPairs } from '../../vision/matchPairs.js';
 import { toSvgMatrix, vec, type Vec2 } from '../../domain/geometry.js';
 import { decodeForDetection, detectLandmarks } from '../../vision/faceLandmarker.js';
+import { useZoom } from '../view/useZoom.js';
+import { ZoomControls } from '../view/ZoomControls.js';
 
 type Status = 'idle' | 'detecting' | 'auto' | 'failed';
 
@@ -37,6 +39,28 @@ export function MatchingStep() {
   const attempted = useRef(false);
   /** Drag-in-progress on the overlay: distinguishes a nudge from a click. */
   const dragState = useRef<{ last: Vec2; startX: number; startY: number; moved: boolean } | null>(null);
+  const overlaySvgRef = useRef<SVGSVGElement>(null);
+  /** The pan/zoom content group; pointer coords map through ITS matrix. */
+  const contentRef = useRef<SVGGElement>(null);
+  const zoom = useZoom(overlaySvgRef);
+
+  /**
+   * Pointer position in content space -- the smile photo's pixels. Taken from
+   * the content group's CTM so it includes the pan/zoom transform; the nudge
+   * and the point pairs both live in photo pixels and must stay exact at any
+   * zoom.
+   */
+  const contentPoint = (event: React.PointerEvent): Vec2 => {
+    const group = contentRef.current;
+    const svg = group?.ownerSVGElement;
+    const ctm = group?.getScreenCTM();
+    if (!svg || !ctm) return vec(0, 0);
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const local = point.matrixTransform(ctm.inverse());
+    return vec(local.x, local.y);
+  };
 
   const smile = photos.smile;
   const retracted = photos.retracted;
@@ -170,11 +194,13 @@ export function MatchingStep() {
       */}
       <div className="matching__stage">
         <svg
+          ref={overlaySvgRef}
           className="matching__svg"
           viewBox={`0 0 ${smileSize.width} ${smileSize.height}`}
           onPointerDown={(event) => {
+            if (zoom.onPanDown(event)) return;
             dragState.current = {
-              last: localPoint(event),
+              last: contentPoint(event),
               startX: event.clientX,
               startY: event.clientY,
               moved: false,
@@ -182,6 +208,7 @@ export function MatchingStep() {
             event.currentTarget.setPointerCapture(event.pointerId);
           }}
           onPointerMove={(event) => {
+            if (zoom.onPanMove(event)) return;
             const drag = dragState.current;
             if (!drag || event.buttons === 0) return;
             // A few screen pixels of slack keeps an intended click from
@@ -190,20 +217,23 @@ export function MatchingStep() {
               if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 5) return;
               drag.moved = true;
             }
-            const point = localPoint(event);
+            const point = contentPoint(event);
             if (matching.transform) nudgeMatch(point.x - drag.last.x, point.y - drag.last.y);
             drag.last = point;
           }}
           onPointerUp={(event) => {
+            if (zoom.onPanUp(event)) return;
             const drag = dragState.current;
             dragState.current = null;
             if (event.currentTarget.hasPointerCapture(event.pointerId)) {
               event.currentTarget.releasePointerCapture(event.pointerId);
             }
             // No movement means it was a click: complete a pending point pair.
-            if (drag && !drag.moved) clickSmile(localPoint(event));
+            if (drag && !drag.moved) clickSmile(contentPoint(event));
           }}
         >
+          {/* One transform for the photo and every overlay (spec 7.3). */}
+          <g ref={contentRef} transform={zoom.groupTransform}>
           <image href={smile.url} x={0} y={0} width={smileSize.width} height={smileSize.height} />
           {matching.transform && (
             <image
@@ -225,7 +255,9 @@ export function MatchingStep() {
               r={Math.max(smileSize.width, smileSize.height) / 110}
             />
           ))}
+          </g>
         </svg>
+        <ZoomControls centre={vec(smileSize.width / 2, smileSize.height / 2)} />
       </div>
 
       <div className="matching__source">
