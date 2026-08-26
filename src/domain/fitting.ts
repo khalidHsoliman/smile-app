@@ -96,14 +96,21 @@ export interface FitResult {
  * How wide the central incisor is, in face-frame units, before the `scale`
  * parameter is applied.
  *
- * One face unit is the inter-alar width. The classic DSD relationship is that
- * inter-alar width approximates inter-canine width -- so the six anterior teeth
- * span roughly one unit. Their combined template width is about 3.5 central
- * widths, which puts a single central near 0.29 units. That is the anchor the
- * `scale` slider multiplies from, so a scale of 1.0 lands in a credible place
- * on a typical face rather than requiring the user to hunt for it.
+ * One face unit is the inter-alar width, which averages about 34 mm. A
+ * maxillary central incisor is about 8.5 mm wide, so the ratio is 8.5/34 =
+ * 0.25.
+ *
+ * Derived from those two measurements rather than estimated. An earlier value
+ * of 0.29 was reasoned backwards from "the anterior six span one inter-alar
+ * width", which double-counted: that DSD relationship compares inter-alar width
+ * to inter-*canine* width measured at the arch, not to the summed frontal
+ * widths of six teeth. It made every design about 17% oversized at scale 1.0 --
+ * a 9.9 mm central against a real 8.5 mm -- so clinicians had to pull the
+ * scale slider down on every case before starting.
+ *
+ * Sanity check at scale 1.0: central 8.5 x 10.6 mm, inter-canine span ~38 mm.
  */
-const CENTRAL_WIDTH_IN_FACE_UNITS = 0.29;
+const CENTRAL_WIDTH_IN_FACE_UNITS = 0.25;
 
 /**
  * `occlusalGap` runs -100..+100 but means a modest vertical shift. This maps

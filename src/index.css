@@ -539,3 +539,18 @@ body { margin: 0; }
   cursor: pointer;
 }
 .app__new:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+
+/* --- shade picker --- */
+
+.palette__row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.palette__input {
+  width: 2.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.3rem;
+  background: transparent;
+  cursor: pointer;
+}
+.palette__brightness { gap: 0.1rem 0.5rem; }
+.palette__actions { display: flex; gap: 0.3rem; }

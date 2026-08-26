@@ -18,7 +18,20 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: 'node_modules/@mediapipe/tasks-vision/wasm/*',
+          /*
+           * Only the one WASM build we actually load.
+           *
+           * MediaPipe ships three pairs and derives the filename at runtime:
+           * `vision_wasm{_module}{_nosimd}_internal`. `_nosimd` is chosen only
+           * when the browser lacks WASM SIMD, which no major browser has since
+           * 2021; `_module` comes from `forVisionTasks`'s second parameter,
+           * which defaults to false and we never pass. So the plain SIMD build
+           * is the only one ever requested -- shipping the other two is 23 MB
+           * of dead weight on every deploy.
+           *
+           * If this ever 404s at runtime, check that derivation first.
+           */
+          src: 'node_modules/@mediapipe/tasks-vision/wasm/vision_wasm_internal.*',
           dest: 'wasm',
           // Without this the source path is reproduced under dest, giving
           // dist/wasm/node_modules/@mediapipe/... instead of flat files.

@@ -159,8 +159,10 @@ export interface AppState {
      * An approximation, never a shade match.
      */
     palette: ToothPalette;
-    /** True when `palette` came from the photo rather than the default. */
+    /** True when the clinician chose the shade by hand. */
     paletteSampled: boolean;
+    /** The photo-derived palette, kept so "Use photo colour" can restore it. */
+    sampledPalette: ToothPalette | null;
     /**
      * Per-tooth adjustments, as deltas on top of the computed fit (spec 11.6).
      * Never replacements -- that is what lets a global slider change and a
@@ -227,12 +229,17 @@ export interface AppState {
   syncUploadGate(): void;
   /** Re-evaluate whether the analysis step's exit condition is met. */
   syncAnalysisGate(): void;
+  /** Re-evaluate whether the report is reachable. */
+  syncDesignGate(): void;
   setTemplate(templateId: string): void;
   setParams(params: Partial<FineTuneParams>): void;
   setTeethOpacity(opacity: number): void;
   setLipMask(enabled: boolean): void;
-  /** Adopt a sampled palette, or pass null to return to the default. */
-  setPalette(palette: ToothPalette | null): void;
+  /**
+   * Set the enamel palette. `manual` marks it as a deliberate choice rather
+   * than a photo sample, which changes what the UI says about it.
+   */
+  setPalette(palette: ToothPalette | null, manual?: boolean): void;
   setReportField(field: 'patientName' | 'clinicName', value: string): void;
 
   /** Replace the editing selection. */
@@ -364,6 +371,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     lipMask: true,
     palette: DEFAULT_PALETTE,
     paletteSampled: false,
+    sampledPalette: null,
     edits: {},
     selection: [],
     mirrorMode: true,
@@ -469,9 +477,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   syncAnalysisGate() {
     if (get().face.frame !== null) {
       get().unlockStep('design');
-      // A design exists the moment the frame does -- the default template and
-      // parameters already produce a fit -- so the report is reachable too.
-      get().unlockStep('report');
+      get().syncDesignGate();
       return;
     }
 
@@ -532,6 +538,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       record(state, { ...state.design, templateId, edits: {}, selection: [] }),
     );
     get().invalidateAfter('design');
+    get().syncDesignGate();
   },
 
   setParams(params) {
@@ -542,6 +549,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       }),
     );
     get().invalidateAfter('design');
+    get().syncDesignGate();
   },
 
   beginParamDrag() {
@@ -570,12 +578,16 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // A view preference, like opacity -- it invalidates nothing.
   },
 
-  setPalette(palette) {
+  setPalette(palette, manual = false) {
     set((state) => ({
       design: {
         ...state.design,
         palette: palette ?? DEFAULT_PALETTE,
-        paletteSampled: palette !== null,
+        paletteSampled: manual,
+        // A photo sample is remembered so the clinician can return to it after
+        // trying a shade by hand.
+        sampledPalette:
+          !manual && palette !== null ? palette : state.design.sampledPalette,
       },
     }));
     // Colour is presentation, not design geometry -- nothing downstream is
@@ -773,6 +785,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         lipMask: true,
         palette: DEFAULT_PALETTE,
         paletteSampled: false,
+        sampledPalette: null,
         edits: {},
         selection: [],
         mirrorMode: true,
@@ -786,6 +799,32 @@ export const useAppStore = create<AppState>()((set, get) => ({
     });
   },
 
+  /**
+   * The design step's exit condition: a usable frame and a template.
+   *
+   * This has to be its own gate rather than a one-off unlock inside
+   * `syncAnalysisGate`. Every design action calls `invalidateAfter('design')`,
+   * which re-locks every later step -- so a report unlocked once when the
+   * references landed was re-locked by the first slider move and never came
+   * back. Same shape as the upload and analysis gates: invalidate, then re-gate.
+   */
+  syncDesignGate() {
+    const { face, design } = get();
+    if (face.frame !== null && design.templateId !== null) {
+      get().unlockStep('report');
+      return;
+    }
+
+    set((state) => {
+      const unlocked = new Set(state.unlockedSteps);
+      for (const step of stepsAfter('design')) unlocked.delete(step);
+      return {
+        unlockedSteps: unlocked,
+        step: unlocked.has(state.step) ? state.step : 'design',
+      };
+    });
+  },
+
   setReportField(field, value) {
     set((state) => ({ report: { ...state.report, [field]: value } }));
     // Metadata only -- it invalidates nothing.
@@ -796,6 +835,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       record(state, { ...state.design, params: { ...DEFAULT_PARAMS } }),
     );
     get().invalidateAfter('design');
+    get().syncDesignGate();
   },
 }));
 

@@ -206,6 +206,40 @@ const toHex = (c: Rgb): string =>
     .map((v) => clamp255(v).toString(16).padStart(2, '0'))
     .join('');
 
+/**
+ * Build a coherent palette from one base colour.
+ *
+ * The four tones of a tooth are not independent: the cervical third is warmer
+ * and darker because dentine shows through thinner enamel, and the incisal edge
+ * is cooler and slightly darker because it has no dentine behind it. Deriving
+ * them from the base keeps any hand-picked shade physically plausible.
+ *
+ * `brightness` shifts the whole set, -40 to +40 in 0-255 units.
+ */
+export function paletteFromBase(base: string, brightness = 0): ToothPalette {
+  const rgb = fromHex(base);
+  const lifted: Rgb = {
+    r: rgb.r + brightness,
+    g: rgb.g + brightness,
+    b: rgb.b + brightness,
+  };
+
+  return {
+    base: toHex(lifted),
+    cervical: toHex(shift(lifted, { luma: -0.07, warmth: 1.1 })),
+    highlight: toHex(shift(lifted, { luma: 0.09, warmth: 0.1 })),
+    incisal: toHex(shift(lifted, { luma: -0.06, warmth: -0.5 })),
+  };
+}
+
+/** Parse `#rrggbb`. Falls back to the default base on anything malformed. */
+function fromHex(hex: string): Rgb {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) return fromHex(DEFAULT_PALETTE.base);
+  const n = parseInt(match[1]!, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
 function boundsOf(points: readonly Vec2[]): {
   x: number;
   y: number;

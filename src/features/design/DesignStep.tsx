@@ -9,6 +9,7 @@ import { decodeForDetection } from '../../vision/faceLandmarker.js';
 import { TemplatePicker } from './TemplatePicker.js';
 import { ParamSliders } from './ParamSliders.js';
 import { ToothEditor } from './ToothEditor.js';
+import { ShadePicker } from './ShadePicker.js';
 import { UndoControls } from './UndoControls.js';
 import { ToothLayer } from './ToothLayer.js';
 
@@ -37,7 +38,6 @@ export function DesignStep() {
   const selection = useAppStore((s) => s.design.selection);
   const toggleToothSelection = useAppStore((s) => s.toggleToothSelection);
   const setToothSelection = useAppStore((s) => s.setToothSelection);
-  const paletteSampled = useAppStore((s) => s.design.paletteSampled);
   const setPalette = useAppStore((s) => s.setPalette);
 
   const template = templateId ? getTemplate(templateId) : undefined;
@@ -169,25 +169,7 @@ export function DesignStep() {
             <span>Clip teeth to the mouth</span>
           </label>
 
-          {/*
-            Sampled colour is an approximation -- camera, lighting and display
-            all shift it -- so it is labelled as one and never presented as a
-            shade match.
-          */}
-          <div className="palette">
-            <span className="slider__name">Tooth colour</span>
-            <span className="palette__swatches" aria-hidden="true">
-              <i style={{ background: palette.cervical }} />
-              <i style={{ background: palette.base }} />
-              <i style={{ background: palette.highlight }} />
-              <i style={{ background: palette.incisal }} />
-            </span>
-            <span className="slider__hint">
-              {paletteSampled
-                ? 'Approximated from this photo. Not a shade match.'
-                : 'Default enamel — no usable sample from this photo.'}
-            </span>
-          </div>
+          <ShadePicker />
 
           <ParamSliders />
 
