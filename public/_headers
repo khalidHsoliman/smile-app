@@ -15,8 +15,11 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Security headers on everything. Deliberately no Cache-Control here: rules
+# that match the same path MERGE their headers rather than overriding, so a
+# catch-all no-cache would be folded into the immutable rules above and force
+# the 12 MB WASM to revalidate on every visit -- observed live before this fix.
 /*
-  Cache-Control: no-cache
   # Patient photographs are decoded in this page. Deny framing outright so the
   # tool cannot be embedded in someone else's document.
   X-Frame-Options: DENY
@@ -26,3 +29,9 @@
   # our own origin precisely so patient photos never involve a CDN. This states
   # that as policy rather than leaving it to convention.
   Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'none'
+
+# The document itself must revalidate on every load, or a deploy strands
+# clients on stale markup pointing at assets that no longer exist. The app has
+# no client-side routes, so `/` is the only document URL anyone visits.
+/
+  Cache-Control: no-cache
