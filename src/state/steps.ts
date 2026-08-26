@@ -7,14 +7,15 @@
  */
 
 /*
- * Photo matching sat between upload and analysis in the previous product,
- * aligning the retracted photo to the smile photo. Spec 15 defers it for the
- * MVP: the design happens on the smile photo, and the retracted one is a visual
- * reference plus a second before/after pair in the report. It was a
- * do-nothing pass-through here, and a step that exists but does nothing is
- * worse than no step in a flow whose target is under five minutes.
+ * Matching sits between upload and analysis, aligning the retracted photo to
+ * the smile photo (spec 15) so the design can be shown on both and the report
+ * carries a genuine second before/after pair.
+ *
+ * It is skipped entirely when there is no retracted photo -- the step exists
+ * only when it has something to do, which is what keeps the flow inside its
+ * five-minute target for the common single-photo case.
  */
-export const STEPS = ['upload', 'analysis', 'design', 'report'] as const;
+export const STEPS = ['upload', 'matching', 'analysis', 'design', 'report'] as const;
 
 export type Step = (typeof STEPS)[number];
 

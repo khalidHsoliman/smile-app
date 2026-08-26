@@ -13,6 +13,11 @@
 import { create } from 'zustand';
 import { STEPS, type Step, stepIndex, stepsAfter } from './steps.js';
 import { mirrorOf, type Universal } from '../domain/teeth.js';
+import {
+  alignmentError,
+  fitSimilarity,
+  type PointPair,
+} from '../domain/similarity.js';
 import { IDENTITY, type Matrix2D } from '../domain/geometry.js';
 import { rotateBy, type QuarterTurns } from '../domain/imageOrientation.js';
 import {
@@ -132,6 +137,22 @@ export interface AppState {
   selectedTeeth: Universal[];
 
   /**
+   * Alignment of the retracted photo onto the smile photo (spec 15).
+   *
+   * `pairs` is what the clinician places or the detector seeds; `transform` is
+   * derived from them and never edited directly, so the two cannot drift
+   * (spec 9.1). Null transform means the photos are not yet aligned.
+   */
+  matching: {
+    pairs: PointPair[];
+    transform: Matrix2D | null;
+    /** RMS residual in pixels -- how well the pairs agree with each other. */
+    error: number;
+    /** True once the clinician has accepted the alignment. */
+    confirmed: boolean;
+  };
+
+  /**
    * Facial analysis (spec 5). `refs` is what the user edits; `frame` is derived
    * from it and never edited directly (spec 9.1).
    */
@@ -225,6 +246,15 @@ export interface AppState {
    */
   setFacialReferences(refs: FacialReferences | null): void;
 
+  /** Replace the matching point pairs and re-derive the transform. */
+  setMatchPairs(pairs: PointPair[]): void;
+  /** Accept the current alignment and open the next step. */
+  confirmMatch(): void;
+  /** Skip alignment entirely -- valid when there is no retracted photo. */
+  skipMatch(): void;
+  /** Re-evaluate whether the matching step's exit condition is met. */
+  syncMatchGate(): void;
+
   /** Re-evaluate whether the upload step's exit condition is met. */
   syncUploadGate(): void;
   /** Re-evaluate whether the analysis step's exit condition is met. */
@@ -293,6 +323,9 @@ const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
   // being first. It is kept for completeness of the record and must stay
   // consistent with the initial state.
   upload: () => ({ photos: { smile: null, retracted: null }, selectedTeeth: [] }),
+  matching: () => ({
+    matching: { pairs: [], transform: null, error: 0, confirmed: false },
+  }),
   analysis: () => ({ face: { refs: null, frame: null, error: null } }),
   design: (state) => ({
     design: {
@@ -363,6 +396,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   photos: { smile: null, retracted: null },
   selectedTeeth: [],
 
+  matching: { pairs: [], transform: null, error: 0, confirmed: false },
   face: { refs: null, frame: null, error: null },
   design: {
     templateId: DEFAULT_TEMPLATE_ID,
@@ -505,7 +539,19 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const satisfied = photos.smile !== null && selectedTeeth.length > 0;
 
     if (satisfied) {
-      get().unlockStep('analysis');
+      get().unlockStep('matching');
+
+      /*
+       * With no retracted photo there is nothing to align, so matching is
+       * auto-confirmed and the clinician never sees it. The step exists only
+       * when it has work to do -- which keeps the common single-photo case
+       * inside the five-minute target.
+       */
+      if (get().photos.retracted === null) {
+        get().skipMatch();
+      } else {
+        get().syncMatchGate();
+      }
       return;
     }
 
@@ -592,6 +638,64 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
     // Colour is presentation, not design geometry -- nothing downstream is
     // stale because of it.
+  },
+
+  setMatchPairs(pairs) {
+    // The transform is derived here and nowhere else, so it cannot drift from
+    // the pairs that produced it (spec 9.1). Fewer than two pairs leaves it
+    // null rather than guessing -- a plausible-looking identity would render a
+    // misaligned overlay with no visible cause.
+    let transform: Matrix2D | null = null;
+    let error = 0;
+    try {
+      transform = fitSimilarity(pairs);
+      error = alignmentError(pairs, transform);
+    } catch {
+      transform = null;
+    }
+
+    set((state) => ({
+      matching: { ...state.matching, pairs, transform, error, confirmed: false },
+    }));
+    get().invalidateAfter('matching');
+    get().syncMatchGate();
+  },
+
+  confirmMatch() {
+    if (get().matching.transform === null) return;
+    set((state) => ({ matching: { ...state.matching, confirmed: true } }));
+    get().syncMatchGate();
+  },
+
+  skipMatch() {
+    // Valid whether or not a retracted photo exists: the design happens on the
+    // smile photo, so an unaligned retracted view simply appears in the report
+    // as a reference rather than a second before/after pair.
+    set((state) => ({
+      matching: { ...state.matching, transform: null, confirmed: true },
+    }));
+    get().syncMatchGate();
+  },
+
+  /**
+   * The matching step's exit condition: confirmed, either by accepting an
+   * alignment or by skipping it. Authoritative in both directions, like the
+   * other gates.
+   */
+  syncMatchGate() {
+    if (get().matching.confirmed) {
+      get().unlockStep('analysis');
+      return;
+    }
+
+    set((state) => {
+      const unlocked = new Set(state.unlockedSteps);
+      for (const step of stepsAfter('matching')) unlocked.delete(step);
+      return {
+        unlockedSteps: unlocked,
+        step: unlocked.has(state.step) ? state.step : 'matching',
+      };
+    });
   },
 
   setToothSelection(teeth) {

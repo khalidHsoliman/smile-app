@@ -124,17 +124,28 @@ export function ReportStep() {
           onSaveAfter={() => save('smileAfter', 'smile-after')}
         />
 
-        {snapshots.images.retractedBefore && (
-          <section className="report__pair">
-            <h2>Retracted view</h2>
-            <div className="report__images">
-              <figure>
-                <img src={snapshots.images.retractedBefore} alt="Retracted view" />
-                <figcaption>Reference</figcaption>
-              </figure>
-            </div>
-          </section>
-        )}
+        {snapshots.images.retractedBefore &&
+          (snapshots.images.retractedAfter ? (
+            <Pair
+              title="Retracted view"
+              before={snapshots.images.retractedBefore}
+              after={snapshots.images.retractedAfter}
+              busy={busy}
+              onSaveBefore={() => save('retractedBefore', 'retracted-before')}
+              onSaveAfter={() => save('retractedAfter', 'retracted-after')}
+            />
+          ) : (
+            /* No alignment, so there is nothing to place a design against. */
+            <section className="report__pair">
+              <h2>Retracted view</h2>
+              <div className="report__images">
+                <figure>
+                  <img src={snapshots.images.retractedBefore} alt="Retracted view" />
+                  <figcaption>Reference</figcaption>
+                </figure>
+              </div>
+            </section>
+          ))}
 
         <footer className="report__footer">
           <p>

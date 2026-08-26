@@ -1,5 +1,6 @@
 import { StepNav } from './features/StepNav.js';
 import { UploadStep } from './features/upload/UploadStep.js';
+import { MatchingStep } from './features/matching/MatchingStep.js';
 import { AnalysisStep } from './features/analysis/AnalysisStep.js';
 import { DesignStep } from './features/design/DesignStep.js';
 import { ReportStep } from './features/report/ReportStep.js';
@@ -39,6 +40,7 @@ export function App() {
       <main className="app__main">
         {!restored && <p className="placeholder">Loading your last case…</p>}
         {restored && step === 'upload' && <UploadStep />}
+        {restored && step === 'matching' && <MatchingStep />}
         {restored && step === 'analysis' && <AnalysisStep />}
         {restored && step === 'design' && <DesignStep />}
         {restored && step === 'report' && <ReportStep />}

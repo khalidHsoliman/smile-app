@@ -5,7 +5,14 @@ import { fitArches } from '../../domain/fitting.js';
 import { applyEdits } from '../../domain/toothEdits.js';
 import { getTemplate } from '../../domain/templates/buildTemplate.js';
 import { lipBoxFrom } from '../../domain/lipBox.js';
-import type { Rect } from '../../domain/geometry.js';
+import {
+  applyMatrix,
+  applyMatrixToVector,
+  invert,
+  normalize,
+  type Rect,
+} from '../../domain/geometry.js';
+import { scaleOf } from '../../domain/similarity.js';
 import { buildDesignSvg } from '../../export/designSvg.js';
 import { inlinePhoto, renderSnapshot } from '../../export/snapshot.js';
 
@@ -40,6 +47,7 @@ export function useSnapshots() {
   const refs = useAppStore((s) => s.face.refs);
   const selectedTeeth = useAppStore((s) => s.selectedTeeth);
   const design = useAppStore((s) => s.design);
+  const matching = useAppStore((s) => s.matching);
 
   const [snapshots, setSnapshots] = useState<Snapshots>({ images: {}, blobs: {} });
   const [busy, setBusy] = useState(false);
@@ -62,6 +70,40 @@ export function useSnapshots() {
   const smileSize = photos.smile
     ? orientedSize(photos.smile, photos.smile.rotation)
     : null;
+
+  /*
+   * The face frame expressed in the retracted photo's coordinates.
+   *
+   * The design is authored against the smile photo, so placing it on the
+   * retracted view means carrying the frame across the alignment: invert the
+   * matching transform (which maps retracted -> smile) and apply it to the
+   * frame's origin and axes.
+   */
+  const alignedFrame = useMemo(() => {
+    if (!frame || !matching.transform) return null;
+    const toRetracted = invert(matching.transform);
+    return {
+      ...frame,
+      origin: applyMatrix(toRetracted, frame.origin),
+      xAxis: normalize(applyMatrixToVector(toRetracted, frame.xAxis)),
+      yAxis: normalize(applyMatrixToVector(toRetracted, frame.yAxis)),
+      scale: frame.scale / scaleOf(matching.transform),
+    };
+  }, [frame, matching.transform]);
+
+  /*
+   * The references without the mouth aperture.
+   *
+   * The aperture is in smile-photo coordinates, so masking the retracted view
+   * with it would clip against the wrong mouth entirely. The key is omitted
+   * rather than set to undefined -- `exactOptionalPropertyTypes` treats those
+   * as different, and rightly so.
+   */
+  const alignedRefs = useMemo(() => {
+    if (!refs) return null;
+    const { mouthAperture: _omitted, ...rest } = refs;
+    return rest;
+  }, [refs]);
 
   /** The close-up crop, derived from the mouth aperture (spec 8.2). */
   const lipBox: Rect | null = useMemo(
@@ -131,14 +173,23 @@ export function useSnapshots() {
         await capture('closeAfter', afterSvg, smileSize, lipBox);
       }
 
-      // The retracted photo has no face frame of its own -- matching is
-      // deferred (spec 15) -- so it appears as a reference pair without the
-      // design rather than being wrongly overlaid.
+      /*
+       * The retracted pair.
+       *
+       * The design lives in the smile photo's coordinates, so showing it on the
+       * retracted view needs the matching transform (spec 15). With an
+       * alignment we invert it -- mapping the smile-photo frame into retracted
+       * coordinates -- and get a true second before/after pair. Without one the
+       * retracted photo appears as a reference only; overlaying an unaligned
+       * design would place teeth confidently in the wrong place, which is worse
+       * than not showing them.
+       */
       const retracted = photos.retracted;
       if (retracted) {
         const size = orientedSize(retracted, retracted.rotation);
         const href = await inlinePhoto(retracted.url);
-        const svg = buildDesignSvg({
+
+        const plain = buildDesignSvg({
           photoHref: href,
           size,
           rotation: retracted.rotation,
@@ -149,7 +200,24 @@ export function useSnapshots() {
           opacity: 1,
           masked: false,
         });
-        await capture('retractedBefore', svg, size);
+        await capture('retractedBefore', plain, size);
+
+        if (alignedFrame && refs) {
+          const withTeeth = buildDesignSvg({
+            photoHref: href,
+            size,
+            rotation: retracted.rotation,
+            fit,
+            frame: alignedFrame,
+            refs: alignedRefs ?? refs,
+            palette: design.palette,
+            opacity: 1,
+            // The aperture is in smile-photo coordinates; masking with it would
+            // clip against the wrong mouth.
+            masked: false,
+          });
+          await capture('retractedAfter', withTeeth, size);
+        }
       }
 
       setSnapshots({ images, blobs });

@@ -554,3 +554,73 @@ body { margin: 0; }
 }
 .palette__brightness { gap: 0.1rem 0.5rem; }
 .palette__actions { display: flex; gap: 0.3rem; }
+
+/* --- photo matching --- */
+
+.step--matching { width: min(72rem, 100%); display: grid; gap: 0.9rem; }
+
+.matching__bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.matching__bar button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.matching__bar button:disabled { opacity: 0.45; cursor: default; }
+.matching__bar button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 10%, transparent); }
+
+.matching__opacity { display: flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; opacity: 0.75; }
+.matching__opacity input { width: 6rem; accent-color: currentColor; }
+
+.matching__status { font-size: 0.72rem; opacity: 0.6; font-variant-numeric: tabular-nums; }
+.matching__error { font-size: 0.72rem; color: #d38b00; }
+.matching__hint { margin: 0 0 0.35rem; font-size: 0.72rem; opacity: 0.6; }
+
+.matching__stage, .matching__source {
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  overflow: hidden;
+}
+.matching__stage { display: grid; place-items: center; max-height: 52vh; }
+.matching__source { padding: 0.6rem; }
+
+.matching__svg { max-width: 100%; max-height: 52vh; cursor: crosshair; touch-action: none; display: block; margin: 0 auto; }
+.matching__svg--source { max-height: 26vh; }
+.matching__svg--source[data-pending] { outline: 2px solid #35d0ff; outline-offset: -2px; }
+
+.matching__point {
+  fill: #35d0ff;
+  fill-opacity: 0.85;
+  stroke: #04222c;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.matching__point--pending { fill: #ffd400; }
+
+.matching__actions { display: flex; gap: 0.5rem; align-items: center; }
+.matching__primary {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid currentColor;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.matching__primary:disabled { opacity: 0.4; cursor: default; }
+.matching__actions button:not(.matching__primary) {
+  padding: 0.45rem 0.8rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
