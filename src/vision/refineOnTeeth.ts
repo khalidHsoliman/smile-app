@@ -18,6 +18,7 @@
  */
 
 import { matchTemplate } from '../domain/correlate.js';
+import { firstEnamelBand, rowProfile } from '../domain/enamelProfile.js';
 import type { Matrix2D, Rect, Vec2 } from '../domain/geometry.js';
 
 export interface Refinement {
@@ -26,10 +27,7 @@ export interface Refinement {
   dy: number;
   /** Correlation at the chosen shift, -1 to 1. */
   score: number;
-  /**
-   * Always true: the vertical offset is not auto-corrected, because the two
-   * photographs do not contain the information to choose it reliably.
-   */
+  /** True when the incisal edge could not be located and `dy` is zero. */
   verticalIsManual: boolean;
 }
 
@@ -77,6 +75,16 @@ const SEARCH_MARGIN_FRACTION = 0.30;
  * can come down without inviting the lip-boundary false positive.
  */
 const ACCEPT_SCORE = 0.35;
+
+/**
+ * Share of the mouth width treated as "the anterior teeth".
+ *
+ * The centrals and laterals: the teeth reliably visible in both a smile and a
+ * retracted view. Wider than this and the profile picks up the canines and
+ * premolars, which the lip covers in one photograph and the retractor exposes
+ * in the other.
+ */
+const ANTERIOR_SHARE = 0.5;
 
 /**
  * Refine `coarse` by correlating the two photos' teeth.
@@ -162,34 +170,52 @@ export function refineOnTeeth(
   const found = matchTemplate(fixed, tw, th, search, sw, sh);
   if (found.score < ACCEPT_SCORE) return { kind: 'weak', score: found.score };
 
+  // Sideways: the interdental gaps are effectively a barcode and the template
+  // locks onto them, so this correction is trustworthy on its own.
+  const dx = (margin - found.x) / scale;
+
   /*
-   * Horizontal only. This is a deliberate limit, not an omission.
+   * Vertically: the incisal edge, found independently in each photo.
    *
-   * Sideways the tooth pattern is unambiguous: the interdental gaps are a
-   * barcode and the template locks onto them, so the correction is trustworthy.
+   * Not from the template match. A smile photo shows tooth from the lip line
+   * down to the incisal edge while a retracted view shows it from the gum down
+   * to the same edge -- different tops, shared bottom -- so a short template
+   * slides inside a tall crown and matches nearly as well at many heights.
+   * Measured on synthetic pairs, a confident 55% match sat at a constant 38 px
+   * offset. Locating the shared boundary in each image instead removes the
+   * freedom that caused it.
    *
-   * Vertically it is not. A smile photo shows a narrow band of tooth while the
-   * retracted view shows the whole crown, so a short template slides inside a
-   * tall one and matches nearly as well at many heights -- measured on
-   * synthetic pairs, a confident 55% match sat at a constant 38 px offset. That
-   * is a property of the two photographs, not of the search: the information
-   * needed to choose a height is genuinely not in the overlap. Tracing the
-   * incisal edge instead was tried and was worse -- unstable wherever the upper
-   * and lower arches meet without a clear dark gap.
-   *
-   * Applying a vertical correction that is confidently wrong is worse than
-   * applying none, because it looks deliberate. So the vertical is left to the
-   * clinician, who can see the design on the retracted photo in the design step
-   * and set it in two seconds -- and is told so.
+   * Restricted to the anterior teeth, which are the ones visible in both
+   * photographs; the corners bring in the buccal corridor, the retractor and
+   * the cheek, none of which correspond.
    */
+  const anteriorFrom = tw * (0.5 - ANTERIOR_SHARE / 2);
+  const anteriorTo = tw * (0.5 + ANTERIOR_SHARE / 2);
+
+  const templateBand = firstEnamelBand(
+    rowProfile(fixed, tw, th, anteriorFrom, anteriorTo),
+  );
+  const searchBand = firstEnamelBand(
+    rowProfile(search, sw, sh, found.x + anteriorFrom, found.x + anteriorTo),
+  );
+
+  let dy = 0;
+  let verticalIsManual = true;
+
+  if (templateBand && searchBand) {
+    /*
+     * A perfectly aligned pair puts the template's content at search row
+     * `margin + its own row`, so the displacement is the difference between
+     * where the edge actually sits and where it would sit if aligned.
+     */
+    const displacement = searchBand.bottom - (margin + templateBand.bottom);
+    dy = -displacement / scale;
+    verticalIsManual = false;
+  }
+
   return {
     kind: 'refined',
-    refinement: {
-      dx: (margin - found.x) / scale,
-      dy: 0,
-      score: found.score,
-      verticalIsManual: true,
-    },
+    refinement: { dx, dy, score: found.score, verticalIsManual },
   };
 }
 
@@ -306,7 +332,16 @@ function enamelMap(
     const min = Math.min(r, g, b);
     const saturation = max === 0 ? 0 : (max - min) / max;
     const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-    out[p] = Math.max(0, luma - 320 * Math.max(0, saturation - 0.12));
+    /*
+     * The saturation penalty has to be steep enough to put skin well below
+     * enamel, not merely below it. Measured on a real-world pair: skin scored
+     * 121 against enamel's 220 at a gentler penalty -- close enough that when
+     * the retracted mouth sat lower and skin entered the top of the search
+     * window, the incisal-edge search picked the skin as its "first enamel
+     * band" and returned an offset wrong by 190 px. At this penalty the same
+     * skin scores about 95 against enamel's 218, and gum falls to zero.
+     */
+    out[p] = Math.max(0, luma - 450 * Math.max(0, saturation - 0.12));
   }
 
   return out;

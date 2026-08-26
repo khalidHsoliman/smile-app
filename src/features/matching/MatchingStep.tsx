@@ -137,9 +137,14 @@ export function MatchingStep() {
 
           switch (outcome.kind) {
             case 'refined': {
-              const { dx, dy, score } = outcome.refinement;
+              const { dx, dy, score, verticalIsManual } = outcome.refinement;
               nudgeMatch(dx, dy);
-              note = `Teeth matched sideways (${(score * 100).toFixed(0)}%). Set the height with the nudge arrows on the Design step — the two photos show different amounts of tooth, so it cannot be judged automatically.`;
+              const moved = Math.hypot(dx, dy);
+              note = verticalIsManual
+                ? `Matched the teeth sideways (${(score * 100).toFixed(0)}%), but could not find the biting edge — set the height with the nudge arrows on the Design step.`
+                : moved > 1
+                  ? `Aligned on the teeth: moved ${moved.toFixed(0)} px, biting edges matched (${(score * 100).toFixed(0)}%).`
+                  : `Teeth already aligned (${(score * 100).toFixed(0)}%).`;
               break;
             }
             case 'weak':
