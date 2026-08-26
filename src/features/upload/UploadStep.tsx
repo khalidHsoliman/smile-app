@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PhotoTile } from './PhotoTile.js';
 import { ToothChart } from '../teeth/ToothChart.js';
 import { useAppStore } from '../../state/store.js';
@@ -13,16 +13,27 @@ export function UploadStep() {
   const loadDemoCase = useAppStore((s) => s.loadDemoCase);
   const hasPhoto = useAppStore((s) => s.photos.smile !== null);
   const [loading, setLoading] = useState(false);
+  const [available, setAvailable] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Offered only when the photos are actually installed: a button that fails
+  // is worse than no button. See `features/demo/demoCase`.
+  useEffect(() => {
+    let cancelled = false;
+    void import('../demo/demoCase.js')
+      .then((m) => m.demoCaseAvailable())
+      .then((ok) => {
+        if (!cancelled) setAvailable(ok);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="step step--upload">
-      {!hasPhoto && (
-        /*
-          A way in without needing a patient. The images are drawn, not
-          photographed: a photo licence comes from the photographer, but a real
-          face also carries that person's own rights and, in a dental context,
-          implies their health data. Nobody is depicted here.
-        */
+      {!hasPhoto && available && (
         <div className="demo">
           <button
             type="button"
@@ -30,13 +41,16 @@ export function UploadStep() {
             disabled={loading}
             onClick={() => {
               setLoading(true);
-              void loadDemoCase().finally(() => setLoading(false));
+              setError(null);
+              void loadDemoCase()
+                .catch((cause: Error) => setError(cause.message))
+                .finally(() => setLoading(false));
             }}
           >
-            {loading ? 'Preparing…' : 'Try the demo case'}
+            {loading ? 'Loading…' : 'Load the demo case'}
           </button>
           <span className="demo__note">
-            An illustrated patient, not a photograph — no real person, no consent needed.
+            {error ?? 'A sample patient, for showing the workflow without an upload.'}
           </span>
         </div>
       )}
