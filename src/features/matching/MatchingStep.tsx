@@ -3,6 +3,9 @@ import { useAppStore } from '../../state/store.js';
 import { isPlausibleScale } from '../../domain/autoMatch.js';
 import { robustPairs, scaleOf } from '../../domain/similarity.js';
 import { buildMatchPairs } from '../../vision/matchPairs.js';
+import { refineOnTeeth } from '../../vision/refineOnTeeth.js';
+import { deriveReferences } from '../../domain/deriveReferences.js';
+import { fitSimilarity } from '../../domain/similarity.js';
 import { toSvgMatrix, vec, type Vec2 } from '../../domain/geometry.js';
 import { decodeForDetection, detectLandmarks } from '../../vision/faceLandmarker.js';
 import { useZoom } from '../view/useZoom.js';
@@ -107,10 +110,47 @@ export function MatchingStep() {
       if (id !== runId.current) return; // superseded
 
       const { kept, dropped } = robustPairs(raw);
-      if (dropped > 0) {
-        setMessage(`${dropped} unreliable point${dropped > 1 ? 's' : ''} discarded.`);
-      }
       setMatchPairs(kept);
+
+      /*
+       * Second stage: let the teeth have the last word.
+       *
+       * The landmark fit above is optimal at the eyes and nose, which is not
+       * where the design lives -- head pitch differs between the two shots and
+       * swings the mouth relative to the eyes. Correlating the actual teeth
+       * corrects that residual, and the maxillary teeth are rigid to the skull
+       * so they are the right thing to register on.
+       */
+      let refined = false;
+      try {
+        const smileRefs = deriveReferences(smileLandmarks, smileSize);
+        const aperture = smileRefs.mouthAperture;
+        if (aperture) {
+          const result = refineOnTeeth(
+            smileImage,
+            retractedImage,
+            retractedSize,
+            fitSimilarity(kept),
+            aperture,
+          );
+          if (result && id === runId.current) {
+            nudgeMatch(result.dx, result.dy);
+            refined = Math.hypot(result.dx, result.dy) > 1;
+          }
+        }
+      } catch {
+        // Refinement is an improvement, never a requirement.
+      }
+
+      if (id !== runId.current) return;
+      setMessage(
+        [
+          dropped > 0 ? `${dropped} unreliable point${dropped > 1 ? 's' : ''} discarded.` : '',
+          refined ? 'Refined on the teeth.' : '',
+        ]
+          .filter(Boolean)
+          .join(' ') || null,
+      );
       setStatus('auto');
     } catch (cause) {
       if (id !== runId.current) return;
