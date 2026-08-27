@@ -22,6 +22,16 @@
  * centrals would be handed a design with worn, short centrals. They keep their
  * published defaults and the clinician moves them if the case calls for it.
  *
+ * **The detected aperture runs generous, and every constant here is calibrated
+ * against that rather than against anatomy.** MediaPipe's mouth corners sit at
+ * the outer commissure rather than at the edge of the visible opening, and its
+ * lower-lip contour sits on the wet line, below the lip's visible upper border.
+ * So the ring is wider and deeper than the hole the teeth show through -- which
+ * biases the width high and the depth high, and those are exactly the two
+ * measurements this module divides by. Textbook ratios applied to it produce an
+ * arch that is too big and sits too low, which is precisely the pair of
+ * corrections a clinician was making by hand on every case.
+ *
  * Pure: no React, no store, no DOM.
  */
 
@@ -44,39 +54,46 @@ import {
  * value of 0.94 came from eyeballing a synthetic face whose mouth was drawn
  * far too wide for its nose; against real anatomy it would have oversized
  * every arch, which is precisely the complaint this module exists to fix.
+ *
+ * Below the textbook 60-65% because the number it multiplies is not the
+ * textbook one. Inter-canine as a share of inter-commissural is measured
+ * between real anatomical landmarks; this is measured between detected ones,
+ * and the detector's corners sit outside the visible opening. Calibrated to the
+ * ratio that lands the arch on the teeth, not to the ratio in the literature.
  */
-const SPAN_OF_APERTURE = 0.62;
+const SPAN_OF_APERTURE = 0.58;
 
-/**
- * How far to trust the aperture's width over the anatomical prior.
+/*
+ * There is no anatomical prior blended in here, and there was.
  *
- * There are two independent estimates of how wide a central incisor should be,
- * and both are noisy in different ways.
- *
- * The *anatomical* one is scale 1.0 by construction: the frame's unit is the
+ * Scale 1.0 is a prediction by construction -- the frame's unit is the
  * inter-alar width and `CENTRAL_WIDTH_IN_FACE_UNITS` encodes 8.5 mm of central
- * against 34 mm of nose. Inter-alar width varies by a few millimetres between
- * people and correlates only loosely with tooth size, so call it +-10%.
+ * against 34 mm of nose -- so blending the measurement halfway toward it looked
+ * like variance reduction and was reasoned out at length. On real photographs
+ * it made the arch visibly too big, every time, and the reason is that the
+ * prior is not merely noisy but biased: nose width and tooth width correlate
+ * only loosely, and a population average pulls every patient toward the same
+ * answer whether or not it is theirs.
  *
- * The *aperture* one measures this particular mouth, but through how broadly
- * this particular person happens to be smiling. A wide grin shows more buccal
- * corridor and reads as a bigger mouth than the same person smiling gently;
- * that is the larger error of the two, call it +-15%.
- *
- * Neither dominates, so neither is used alone -- the estimate is a blend. An
- * earlier version took the aperture measurement outright and landed centrals
- * around 7.7 mm, visibly under the 8.5 mm norm, because it inherited the full
- * width of the smile-broadness error with nothing to pull against it.
+ * The aperture is at least measuring this mouth. Averaging a measurement with a
+ * guess is only worth doing when the guess is unbiased, and a clinician
+ * correcting the same slider in the same direction on every case is the
+ * evidence that it is not.
  */
-const APERTURE_WEIGHT = 0.5;
 
 /**
  * Where the central incisal edge should sit, as a fraction of the aperture's
  * depth below the lip line. Upper teeth dominate a natural smile: they show
  * for roughly the upper two thirds of the opening, with the lower teeth and
  * the dark of the mouth below.
+ *
+ * Two thirds is what a photograph shows; this sits under it because the depth
+ * it scales is measured to the detector's lower-lip contour, which follows the
+ * wet line rather than the visible top of the lip. Every millimetre of that
+ * overshoot became a millimetre of arch hung too low, and the clinician moved
+ * it back up on every case.
  */
-const DROP_OF_APERTURE = 0.72;
+const DROP_OF_APERTURE = 0.62;
 
 /**
  * How much of the lower lip's curvature `smileCurve` is asked to supply.
@@ -144,12 +161,10 @@ export function suggestFitParams(
   if (width < 0.3 || depth < 0.04) return null;
 
   // Anterior span in face units is ANTERIOR_SIX_WIDTH * centralWidth * scale;
-  // solve for the scale that makes it SPAN_OF_APERTURE of the real width, then
-  // blend that measurement with the anatomical prior of 1.0.
-  const measured =
+  // solve for the scale that makes it SPAN_OF_APERTURE of the measured width.
+  const scale =
     (width * SPAN_OF_APERTURE) /
     (ANTERIOR_SIX_WIDTH * CENTRAL_WIDTH_IN_FACE_UNITS);
-  const scale = APERTURE_WEIGHT * measured + (1 - APERTURE_WEIGHT) * 1.0;
 
   // The fitter already drops the edge DEFAULT_INCISAL_DROP below the lip line;
   // occlusalGap covers the difference to the aperture-derived target.
