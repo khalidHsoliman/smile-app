@@ -16,7 +16,11 @@ import {
 } from '../../domain/geometry.js';
 import { isUpper } from '../../domain/teeth.js';
 import { ToothShading } from './ToothShading.js';
-import { luminanceOf, type ToothPalette } from '../../vision/sampleToothColor.js';
+import {
+  luminanceOf,
+  oralShadowFrom,
+  type ToothPalette,
+} from '../../vision/sampleToothColor.js';
 
 /** The photograph the design is drawn over, for the blend pass. */
 export interface BlendSource {
@@ -50,12 +54,16 @@ interface ToothLayerProps {
 /**
  * The design layer: template teeth placed on the photo (spec 7.1).
  *
- * Three things matter here.
+ * Four things matter here.
  *
  * **The lip mask.** Teeth are clipped to the mouth aperture, so the design
  * appears *inside* the mouth rather than painted over the lips. Without it
  * every design reads as pasted on, which is the single most obvious tell of an
  * amateur mock-up.
+ *
+ * **The backdrop.** The teeth the design replaces have to disappear, and the
+ * design covering them is not the same as the design hiding them -- see
+ * `BACKDROP_DILATION`.
  *
  * **The blend pass.** See `blendFilter` below -- it is what stops the design
  * reading as a sticker.
@@ -108,7 +116,17 @@ export function ToothLayer({
    */
   const designBounds = useMemo(() => boundsOfDesign(placed), [placed]);
 
+  /*
+   * One central incisor's width, in image pixels. The blend's blur is set in
+   * these rather than in pixels or in a share of the design's own box: the box
+   * is twice as tall when both arches are designed and half as wide when six
+   * teeth are selected instead of twelve, so anything scaled off it changes the
+   * look of the blend depending on what the clinician happened to select.
+   */
+  const toothWidth = useMemo(() => centralWidthInPixels(placed), [placed]);
+
   const useBlend = blend && photo !== undefined && designBounds !== null;
+  const shadow = useMemo(() => oralShadowFrom(palette), [palette]);
 
   return (
     <>
@@ -140,7 +158,7 @@ export function ToothLayer({
                 <path key={tooth.universal} d={tooth.outline} transform={matrix} />
               ))}
           </clipPath>
-          {blendFilter(`${clipId}-shading`, palette, designBounds)}
+          {blendFilter(`${clipId}-shading`, palette, designBounds, toothWidth)}
         </defs>
       )}
 
@@ -149,6 +167,25 @@ export function ToothLayer({
         opacity={opacity}
         clipPath={useMask ? `url(#${clipId})` : undefined}
       >
+        {/*
+          The old teeth, painted out. Drawn from the design's own outlines
+          rather than over the whole aperture: the aperture also contains
+          gingiva on a high smile line, and blanking that would erase the one
+          tissue a smile design must never invent.
+        */}
+        <g className="teeth__backdrop" fill={shadow} stroke={shadow}>
+          {placed
+            .filter(({ tooth }) => !tooth.auxiliary)
+            .map(({ tooth, matrix }) => (
+              <path
+                key={tooth.universal}
+                d={tooth.outline}
+                transform={matrix}
+                strokeWidth={BACKDROP_DILATION}
+              />
+            ))}
+        </g>
+
         {placed.map(({ tooth, matrix }) => {
           const shading = `${clipId}-${isUpper(tooth.universal) ? 'upper' : 'lower'}`;
 
@@ -230,6 +267,27 @@ function placementOf(tooth: PlacedTooth) {
 }
 
 /**
+ * How far the backdrop is grown beyond the design's own silhouette, in
+ * central-incisor widths -- so about a quarter of a millimetre on each side.
+ *
+ * The design's teeth are opaque, so anywhere one covers an old tooth the old
+ * tooth is already gone. What is left is the rim: wherever the new arch is
+ * narrower than the old, or set back from it, or the old tooth is rotated out
+ * from under it, a sliver of the original shows around the edge and the result
+ * reads as two sets of teeth overlaid. Painting the silhouette slightly
+ * oversized underneath swallows that rim.
+ *
+ * Drawn as a stroke on the same paths rather than as a computed offset
+ * outline: it dilates in every direction at once, it costs nothing, and it
+ * scales with the tooth because the placement matrix scales the stroke.
+ *
+ * Kept small on purpose. It also grows a little *up* past the gum line, where
+ * it reads as the shadow at the gingival margin -- true at a quarter of a
+ * millimetre and a dark halo at two.
+ */
+const BACKDROP_DILATION = 0.06;
+
+/**
  * How much of the photograph's shading to carry onto the design.
  *
  * Short of the whole of it. The photo's light is the right *shape* but not
@@ -238,6 +296,23 @@ function placementOf(tooth: PlacedTooth) {
  * little cleaner than the photograph it sits in.
  */
 const BLEND_STRENGTH = 0.75;
+
+/**
+ * How far the shading map is blurred, in central-incisor widths.
+ *
+ * Without this the blend is worse than useless. The photograph's light is what
+ * the design wants; the photograph's *detail* is the patient's existing teeth,
+ * and multiplying that back over the design prints their interdental lines,
+ * their chips and their old incisal edges straight onto the new ones -- the
+ * originals showing through the very teeth meant to replace them.
+ *
+ * Blurring separates the two. Light varies slowly across a mouth: the shadow
+ * under the upper lip, the fall-off into the buccal corridor. Tooth detail
+ * varies at the scale of a tooth. Set to roughly a fifth of a crown's width,
+ * which flattens the detail while leaving the gradient that made the pass worth
+ * having.
+ */
+const BLEND_BLUR = 0.22;
 
 /**
  * The darkest the shading may take a tooth, as a fraction of its drawn colour.
@@ -271,7 +346,12 @@ const SHADING_FLOOR = 0.45;
  * linearRGB, which would move the midpoint the rescaling is centred on and
  * quietly darken every design.
  */
-function blendFilter(id: string, palette: ToothPalette, region: Rect) {
+function blendFilter(
+  id: string,
+  palette: ToothPalette,
+  region: Rect,
+  toothWidth: number,
+) {
   // Where the photo's own enamel sits on the 0..1 scale -- the level that must
   // come through as "unchanged". Guarded: a near-black sample would divide the
   // slope into absurdity.
@@ -288,19 +368,45 @@ function blendFilter(id: string, palette: ToothPalette, region: Rect) {
   const row = [0.299 * k, 0.587 * k, 0.114 * k, 0, SHADING_FLOOR];
   const matrix = [...row, ...row, ...row, 0, 0, 0, 1, 0].join(' ');
 
+  const blur = toothWidth * BLEND_BLUR;
+  // A Gaussian is negligible past three standard deviations, so the region has
+  // to carry that much extra on every side. Short of it, the blur reaches
+  // outside the region, finds transparent black, and draws a dark border around
+  // the whole design.
+  const margin = 3 * blur + 1;
+
   return (
     <filter
       id={id}
       filterUnits="userSpaceOnUse"
-      x={region.x}
-      y={region.y}
-      width={region.width}
-      height={region.height}
+      x={region.x - margin}
+      y={region.y - margin}
+      width={region.width + 2 * margin}
+      height={region.height + 2 * margin}
       colorInterpolationFilters="sRGB"
     >
       <feColorMatrix type="matrix" values={matrix} />
+      <feGaussianBlur stdDeviation={blur} />
     </filter>
   );
+}
+
+/**
+ * The measured width of one central incisor, in image pixels.
+ *
+ * The outlines are authored with the central at 1.0 wide, so the length of the
+ * placement matrix's x column is that width in pixels. Auxiliary teeth are
+ * skipped -- an injected anchor can be scaled to nothing.
+ */
+function centralWidthInPixels(
+  placed: readonly { tooth: PlacedTooth; transform: Matrix2D }[],
+): number {
+  for (const { tooth, transform } of placed) {
+    if (tooth.auxiliary) continue;
+    const width = Math.hypot(transform.a, transform.b);
+    if (width > 0) return width;
+  }
+  return 0;
 }
 
 /**

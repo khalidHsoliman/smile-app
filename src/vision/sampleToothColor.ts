@@ -260,6 +260,26 @@ export function paletteFromBase(base: string, brightness = 0): ToothPalette {
 }
 
 /**
+ * The dark of the mouth, behind the design.
+ *
+ * A design has to cover the teeth it replaces, and covering them with the
+ * design alone is not enough: wherever the new arch is narrower, shorter or set
+ * back from the old one, the patient's original teeth show around its edge and
+ * the mock-up reads as two sets of teeth rather than one. Painting this behind
+ * the design closes that gap.
+ *
+ * Derived from the sampled cervical tone rather than fixed, so the shadow
+ * carries the photograph's own warmth -- a flat charcoal reads as a hole cut in
+ * the picture. Warmer and redder than a plain dimming, because the mouth's
+ * shadow is lit through lip and gingiva.
+ */
+export function oralShadowFrom(palette: ToothPalette): string {
+  const { r, g, b } = fromHex(palette.cervical);
+  const dim = 0.22;
+  return toHex({ r: r * dim, g: g * dim * 0.9, b: b * dim * 0.86 });
+}
+
+/**
  * Relative luminance of a hex colour, 0..1.
  *
  * The Rec.601 weights, matching what `feColorMatrix type="saturate" values="0"`
