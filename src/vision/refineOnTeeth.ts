@@ -264,11 +264,32 @@ export function refineOnTeeth(
   // ------------------------------------------------------------- the position
   const work = planFor(WORK_WIDTH, template);
   const fixed = templateMap(work);
-  const search = searchMap(work, zoom);
-  if (!fixed || !search) return { kind: 'unavailable' };
-  if (!hasEnamel(fixed) || !hasEnamel(search)) return { kind: 'no-teeth' };
+  if (!fixed) return { kind: 'unavailable' };
+  if (!hasEnamel(fixed)) return { kind: 'no-teeth' };
 
-  const found = matchTemplate(fixed, work.tw, work.th, search, work.sw, work.sh);
+  /*
+   * Confirm the scale at full resolution before trusting it.
+   *
+   * The sweep above runs at half width with a wide stride, which is what makes
+   * searching scale affordable at all -- but choosing a parameter at reduced
+   * resolution and never re-checking it is a real weakness. Detail the scan
+   * cannot resolve is exactly the detail that distinguishes neighbouring
+   * scales, so its answer is a neighbourhood rather than a value. Re-scoring
+   * the winner and its two neighbours at full resolution costs three passes and
+   * settles which of them it actually is.
+   */
+  let best: { zoom: number; map: Float32Array; found: ReturnType<typeof matchTemplate> } | null = null;
+
+  for (const candidate of [zoom - ZOOM_FINE_STEP, zoom, zoom + ZOOM_FINE_STEP]) {
+    const map = searchMap(work, candidate);
+    if (!map || !hasEnamel(map)) continue;
+    const found = matchTemplate(fixed, work.tw, work.th, map, work.sw, work.sh);
+    if (!best || found.score > best.found.score) best = { zoom: candidate, map, found };
+  }
+
+  if (!best) return { kind: 'no-teeth' };
+
+  const { zoom: finalZoom, map: search, found } = best;
   if (found.score < ACCEPT_SCORE) return { kind: 'weak', score: found.score };
 
   // Sideways: the interdental gaps are effectively a barcode and the template
@@ -330,19 +351,19 @@ export function refineOnTeeth(
    * correction to the zoomed result and not to the coarse one.
    */
   const zoomAboutMouth: Matrix2D = {
-    a: zoom,
+    a: finalZoom,
     b: 0,
     c: 0,
-    d: zoom,
-    e: centre.x * (1 - zoom),
-    f: centre.y * (1 - zoom),
+    d: finalZoom,
+    e: centre.x * (1 - finalZoom),
+    f: centre.y * (1 - finalZoom),
   };
 
   return {
     kind: 'refined',
     refinement: {
       correction: compose(zoomAboutMouth, translation(dx, dy)),
-      zoom,
+      zoom: finalZoom,
       moved: Math.hypot(dx, dy),
       score: found.score,
       verticalIsManual,
