@@ -18,7 +18,7 @@
  */
 
 import { matchTemplate } from '../domain/correlate.js';
-import { firstEnamelBand, rowProfile } from '../domain/enamelProfile.js';
+import { alignProfiles, fallingEdges, rowProfile } from '../domain/enamelProfile.js';
 import type { Matrix2D, Rect, Vec2 } from '../domain/geometry.js';
 
 export interface Refinement {
@@ -75,6 +75,17 @@ const SEARCH_MARGIN_FRACTION = 0.30;
  * can come down without inviting the lip-boundary false positive.
  */
 const ACCEPT_SCORE = 0.35;
+
+/**
+ * Minimum correlation between the two edge profiles to trust the vertical.
+ *
+ * Separate from `ACCEPT_SCORE`, and separately reported: the sideways match and
+ * the vertical one are different measurements on different data, and either can
+ * succeed while the other has nothing to work with. A low smile line gives a
+ * strong sideways lock on the interdental barcode and almost no vertical
+ * structure at all, and saying so is better than inventing a number.
+ */
+const ACCEPT_VERTICAL = 0.4;
 
 /**
  * Share of the mouth width treated as "the anterior teeth".
@@ -173,15 +184,19 @@ export function refineOnTeeth(
   const dx = (margin - found.x) / scale;
 
   /*
-   * Vertically: the incisal edge, found independently in each photo.
+   * Vertically: correlate the two photographs' falling edges.
    *
-   * Not from the template match. A smile photo shows tooth from the lip line
-   * down to the incisal edge while a retracted view shows it from the gum down
-   * to the same edge -- different tops, shared bottom -- so a short template
-   * slides inside a tall crown and matches nearly as well at many heights.
-   * Measured on synthetic pairs, a confident 55% match sat at a constant 38 px
-   * offset. Locating the shared boundary in each image instead removes the
-   * freedom that caused it.
+   * Not from the 2-D template match. A smile photo shows tooth from the lip
+   * line down to the incisal edge while a retracted view shows it from the gum
+   * down to the same edge -- different tops, shared bottom -- so a short
+   * template slides inside a tall crown and matches nearly as well at many
+   * heights. Measured on synthetic pairs, a confident 55% match sat at a
+   * constant 38 px offset.
+   *
+   * Differentiating each row profile and keeping only the falling edges leaves
+   * just what the two shots have in common: incisal edges, where enamel gives
+   * way to shadow. The lip line and the gum line are rising edges and drop out
+   * -- which is precisely the freedom that let the 2-D match slide.
    *
    * Restricted to the anterior teeth, which are the ones visible in both
    * photographs; the corners bring in the buccal corridor, the retractor and
@@ -190,24 +205,25 @@ export function refineOnTeeth(
   const anteriorFrom = tw * (0.5 - ANTERIOR_SHARE / 2);
   const anteriorTo = tw * (0.5 + ANTERIOR_SHARE / 2);
 
-  const templateBand = firstEnamelBand(
+  const templateEdges = fallingEdges(
     rowProfile(fixed, tw, th, anteriorFrom, anteriorTo),
   );
-  const searchBand = firstEnamelBand(
+  const searchEdges = fallingEdges(
     rowProfile(search, sw, sh, found.x + anteriorFrom, found.x + anteriorTo),
   );
+
+  /*
+   * A perfectly aligned pair puts the template's first row at search row
+   * `margin`, so the alignment is measured from there and a shift of zero means
+   * the landmark fit already had the vertical right.
+   */
+  const vertical = alignProfiles(templateEdges, searchEdges, margin, margin);
 
   let dy = 0;
   let verticalIsManual = true;
 
-  if (templateBand && searchBand) {
-    /*
-     * A perfectly aligned pair puts the template's content at search row
-     * `margin + its own row`, so the displacement is the difference between
-     * where the edge actually sits and where it would sit if aligned.
-     */
-    const displacement = searchBand.bottom - (margin + templateBand.bottom);
-    dy = -displacement / scale;
+  if (vertical && vertical.score >= ACCEPT_VERTICAL) {
+    dy = -vertical.shift / scale;
     verticalIsManual = false;
   }
 
