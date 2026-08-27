@@ -27,6 +27,7 @@ export function RetractedReference({ fit }: { fit: FitResult | null }) {
   const frame = useAppStore((s) => s.face.frame);
   const transform = useAppStore((s) => s.matching.transform);
   const palette = useAppStore((s) => s.design.palette);
+  const photoBlend = useAppStore((s) => s.design.photoBlend);
   const nudgeMatch = useAppStore((s) => s.nudgeMatch);
 
   const alignedFrame = useMemo(
@@ -115,6 +116,14 @@ export function RetractedReference({ fit }: { fit: FitResult | null }) {
             // clip against the wrong mouth. The retractors expose the whole
             // arch anyway, which is the point of the view.
             masked={false}
+            // The design is aligned to this photo, so this is the photo whose
+            // light it should pick up.
+            photo={{
+              href: retracted.url,
+              width: retracted.width,
+              height: retracted.height,
+            }}
+            blend={photoBlend}
           />
         )}
       </svg>

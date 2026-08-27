@@ -259,6 +259,18 @@ export function paletteFromBase(base: string, brightness = 0): ToothPalette {
   };
 }
 
+/**
+ * Relative luminance of a hex colour, 0..1.
+ *
+ * The Rec.601 weights, matching what `feColorMatrix type="saturate" values="0"`
+ * uses -- the blend pass rescales the photograph about this value, so the two
+ * have to agree on what "the same brightness" means or the design shifts.
+ */
+export function luminanceOf(hex: string): number {
+  const { r, g, b } = fromHex(hex);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
 /** Parse `#rrggbb`. Falls back to the default base on anything malformed. */
 function fromHex(hex: string): Rgb {
   const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());

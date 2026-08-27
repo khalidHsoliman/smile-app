@@ -273,6 +273,22 @@ body { margin: 0; }
 .tooth__proximal,
 .tooth__highlight { stroke: none; }
 
+/*
+ * The blend pass: the photograph's own light, multiplied back over the design
+ * (see `blendFilter` in ToothLayer). Multiply rather than a softer mode because
+ * the design is nearly white, and every mode that blends toward the backdrop
+ * compresses to nothing up there -- the shadows simply would not show.
+ */
+.teeth__blend {
+  mix-blend-mode: multiply;
+}
+
+/* Isolated so the blend pass finds the design as its backdrop, never the
+   photograph underneath it. */
+.teeth {
+  isolation: isolate;
+}
+
 .tooth__edge {
   fill: none;
   stroke: #9c8f79;

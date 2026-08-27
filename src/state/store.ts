@@ -201,6 +201,12 @@ export interface AppState {
     /** Clip the design to the mouth aperture (spec 7.1). */
     lipMask: boolean;
     /**
+     * Carry the photograph's own light onto the design, so it sits *in* the
+     * photo rather than on top of it. On by default; a viewing preference like
+     * the mask, and off shows the design's raw drawn colour.
+     */
+    photoBlend: boolean;
+    /**
      * Enamel colours. Sampled from the patient's own photo when possible, so
      * the design sits naturally against their skin and the shot's lighting.
      * An approximation, never a shade match.
@@ -295,6 +301,7 @@ export interface AppState {
   setParams(params: Partial<FineTuneParams>): void;
   setTeethOpacity(opacity: number): void;
   setLipMask(enabled: boolean): void;
+  setPhotoBlend(enabled: boolean): void;
   /**
    * Set the enamel palette. `manual` marks it as a deliberate choice rather
    * than a photo sample, which changes what the UI says about it.
@@ -376,9 +383,10 @@ const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
 /**
  * The part of the design that undo tracks.
  *
- * Deliberately not the whole design slice: `teethOpacity`, `lipMask` and
- * `selection` are how the clinician is *looking* at the design, not decisions
- * about it, and stepping back through them would be surprising.
+ * Deliberately not the whole design slice: `teethOpacity`, `lipMask`,
+ * `photoBlend` and `selection` are how the clinician is *looking* at the
+ * design, not decisions about it, and stepping back through them would be
+ * surprising.
  */
 export interface DesignSnapshot {
   templateId: string | null;
@@ -442,6 +450,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     params: { ...DEFAULT_PARAMS },
     teethOpacity: 0.9,
     lipMask: true,
+    photoBlend: true,
     palette: DEFAULT_PALETTE,
     paletteSampled: false,
     sampledPalette: null,
@@ -727,6 +736,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setLipMask(enabled) {
     set((state) => ({ design: { ...state.design, lipMask: enabled } }));
     // A view preference, like opacity -- it invalidates nothing.
+  },
+
+  setPhotoBlend(enabled) {
+    set((state) => ({ design: { ...state.design, photoBlend: enabled } }));
+    // Likewise: it changes how the design is shown, not what it is.
   },
 
   setPalette(palette, manual = false) {
@@ -1079,6 +1093,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         params: { ...DEFAULT_PARAMS },
         teethOpacity: 0.9,
         lipMask: true,
+        photoBlend: true,
         palette: DEFAULT_PALETTE,
         paletteSampled: false,
         sampledPalette: null,

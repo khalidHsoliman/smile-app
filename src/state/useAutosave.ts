@@ -44,6 +44,7 @@ function fingerprint(s: ReturnType<typeof useAppStore.getState>): string {
     s.design.edits,
     s.design.teethOpacity,
     s.design.lipMask,
+    s.design.photoBlend,
     s.design.mirrorMode,
     s.report,
   ]);
@@ -130,6 +131,7 @@ export function useAutosave() {
             edits: s.design.edits,
             teethOpacity: s.design.teethOpacity,
             lipMask: s.design.lipMask,
+            photoBlend: s.design.photoBlend,
             mirrorMode: s.design.mirrorMode,
           },
           report: s.report,

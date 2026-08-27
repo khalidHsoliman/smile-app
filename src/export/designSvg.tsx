@@ -16,6 +16,8 @@ export interface DesignSvgOptions {
   palette: ToothPalette;
   opacity: number;
   masked: boolean;
+  /** Carry the photograph's own light onto the design (see `ToothLayer`). */
+  blend: boolean;
 }
 
 /**
@@ -31,7 +33,8 @@ export interface DesignSvgOptions {
  * stylesheet or an object URL.
  */
 export function buildDesignSvg(options: DesignSvgOptions): string {
-  const { photoHref, size, fit, frame, refs, palette, opacity, masked } = options;
+  const { photoHref, size, fit, frame, refs, palette, opacity, masked, blend } =
+    options;
 
   const layer =
     fit && frame && refs
@@ -43,6 +46,8 @@ export function buildDesignSvg(options: DesignSvgOptions): string {
             palette={palette}
             opacity={opacity}
             masked={masked}
+            photo={{ href: photoHref, width: size.width, height: size.height }}
+            blend={blend}
           />,
         )
       : '';
@@ -71,5 +76,7 @@ export function buildDesignSvg(options: DesignSvgOptions): string {
 const TOOTH_STYLES = `
 .tooth[data-auxiliary]{display:none}
 .tooth__body,.tooth__proximal,.tooth__highlight{stroke:none}
+.teeth{isolation:isolate}
+.teeth__blend{mix-blend-mode:multiply}
 .tooth__edge{fill:none;stroke:#9c8f79;stroke-width:0.9;stroke-opacity:0.5;vector-effect:non-scaling-stroke}
 `.trim();

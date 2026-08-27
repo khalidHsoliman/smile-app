@@ -66,6 +66,8 @@ export interface StoredCase {
     edits: ToothEdits;
     teethOpacity: number;
     lipMask: boolean;
+    /** Optional: absent in cases saved before the blend pass existed. */
+    photoBlend?: boolean;
     mirrorMode: boolean;
   };
   report: { patientName: string; clinicName: string };

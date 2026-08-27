@@ -122,6 +122,7 @@ export function useSnapshots() {
           // working opacity, which is a comparison aid, not a design decision.
           opacity: 1,
           masked: design.lipMask,
+          blend: design.photoBlend,
         });
 
       const beforeSvg = withDesign(smileHref, smileSize, false);
@@ -160,6 +161,7 @@ export function useSnapshots() {
           palette: design.palette,
           opacity: 1,
           masked: false,
+          blend: false,
         });
         await capture('retractedBefore', plain, size);
 
@@ -175,6 +177,9 @@ export function useSnapshots() {
             // The aperture is in smile-photo coordinates; masking with it would
             // clip against the wrong mouth.
             masked: false,
+            // The design is aligned to *this* photo, so it is this photo's
+            // light the teeth should pick up.
+            blend: design.photoBlend,
           });
           await capture('retractedAfter', withTeeth, size);
         }

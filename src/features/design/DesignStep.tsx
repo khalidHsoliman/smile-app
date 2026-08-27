@@ -35,7 +35,9 @@ export function DesignStep() {
   const teethOpacity = useAppStore((s) => s.design.teethOpacity);
   const setTeethOpacity = useAppStore((s) => s.setTeethOpacity);
   const lipMask = useAppStore((s) => s.design.lipMask);
+  const photoBlend = useAppStore((s) => s.design.photoBlend);
   const setLipMask = useAppStore((s) => s.setLipMask);
+  const setPhotoBlend = useAppStore((s) => s.setPhotoBlend);
   const palette = useAppStore((s) => s.design.palette);
   const paletteSampled = useAppStore((s) => s.design.paletteSampled);
   const edits = useAppStore((s) => s.design.edits);
@@ -150,6 +152,8 @@ export function DesignStep() {
                   opacity={teethOpacity}
                   masked={lipMask}
                   palette={palette}
+                  photo={{ href: photo.url, width: size.width, height: size.height }}
+                  blend={photoBlend}
                   selection={selection}
                   onToothClick={toggleToothSelection}
                 />
@@ -202,6 +206,21 @@ export function DesignStep() {
               onChange={(event) => setLipMask(event.target.checked)}
             />
             <span>Clip teeth to the mouth</span>
+          </label>
+
+          {/*
+            Blending carries the photograph's light onto the design. Off shows
+            the drawn colour on its own, which is how you judge the shade
+            itself -- the blend deliberately darkens it wherever the photo is
+            in shadow.
+          */}
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={photoBlend}
+              onChange={(event) => setPhotoBlend(event.target.checked)}
+            />
+            <span>Blend into the photo</span>
           </label>
 
           <ShadePicker />
