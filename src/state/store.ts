@@ -210,8 +210,6 @@ export interface AppState {
      * old teeth, so the honest default is the design's own drawn colour and the
      * clinician turns the pass on if it flatters this case.
      *
-     * Note it is not what hides the teeth being replaced -- the backdrop in
-     * `ToothLayer` does that, unconditionally.
      */
     photoBlend: boolean;
     /**

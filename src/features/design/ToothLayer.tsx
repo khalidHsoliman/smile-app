@@ -16,11 +16,7 @@ import {
 } from '../../domain/geometry.js';
 import { isUpper } from '../../domain/teeth.js';
 import { ToothShading } from './ToothShading.js';
-import {
-  luminanceOf,
-  oralShadowFrom,
-  type ToothPalette,
-} from '../../vision/sampleToothColor.js';
+import { luminanceOf, type ToothPalette } from '../../vision/sampleToothColor.js';
 
 /** The photograph the design is drawn over, for the blend pass. */
 export interface BlendSource {
@@ -54,19 +50,23 @@ interface ToothLayerProps {
 /**
  * The design layer: template teeth placed on the photo (spec 7.1).
  *
- * Four things matter here.
+ * Three things matter here.
  *
  * **The lip mask.** Teeth are clipped to the mouth aperture, so the design
  * appears *inside* the mouth rather than painted over the lips. Without it
  * every design reads as pasted on, which is the single most obvious tell of an
  * amateur mock-up.
  *
- * **The backdrop.** The teeth the design replaces have to disappear, and the
- * design covering them is not the same as the design hiding them -- see
- * `BACKDROP_DILATION`.
+ * **The material.** The sheen, glint and grain passes -- see `ToothShading` and
+ * `grainFilter` -- are what stop the teeth reading as flat cut-outs.
  *
- * **The blend pass.** See `blendFilter` below -- it is what stops the design
- * reading as a sticker.
+ * **Translucency.** The tooth body is deliberately *not* opaque through its
+ * middle third: the photograph shows through, which is what makes the design
+ * sit in the mouth rather than on it. An opaque body was tried, together with a
+ * dark backdrop painted behind the design to hide the teeth being replaced. It
+ * did hide them, and it cost more than it bought -- the arch went dull and the
+ * dilated backdrop drew a dark outline around every crown. The translucency is
+ * worth more than the coverage.
  *
  * **Untouched outlines.** Each tooth draws its template path plus a transform,
  * so the source geometry survives for per-tooth editing later (spec 11.6), and
@@ -126,7 +126,6 @@ export function ToothLayer({
   const toothWidth = useMemo(() => centralWidthInPixels(placed), [placed]);
 
   const useBlend = blend && photo !== undefined && designBounds !== null;
-  const shadow = useMemo(() => oralShadowFrom(palette), [palette]);
 
   return (
     <>
@@ -169,25 +168,6 @@ export function ToothLayer({
         opacity={opacity}
         clipPath={useMask ? `url(#${clipId})` : undefined}
       >
-        {/*
-          The old teeth, painted out. Drawn from the design's own outlines
-          rather than over the whole aperture: the aperture also contains
-          gingiva on a high smile line, and blanking that would erase the one
-          tissue a smile design must never invent.
-        */}
-        <g className="teeth__backdrop" fill={shadow} stroke={shadow}>
-          {placed
-            .filter(({ tooth }) => !tooth.auxiliary)
-            .map(({ tooth, matrix }) => (
-              <path
-                key={tooth.universal}
-                d={tooth.outline}
-                transform={matrix}
-                strokeWidth={BACKDROP_DILATION}
-              />
-            ))}
-        </g>
-
         {placed.map(({ tooth, matrix }) => {
           const shading = `${clipId}-${isUpper(tooth.universal) ? 'upper' : 'lower'}`;
 
@@ -288,27 +268,6 @@ function placementOf(tooth: PlacedTooth) {
 }
 
 /**
- * How far the backdrop is grown beyond the design's own silhouette, in
- * central-incisor widths -- so about a quarter of a millimetre on each side.
- *
- * The design's teeth are opaque, so anywhere one covers an old tooth the old
- * tooth is already gone. What is left is the rim: wherever the new arch is
- * narrower than the old, or set back from it, or the old tooth is rotated out
- * from under it, a sliver of the original shows around the edge and the result
- * reads as two sets of teeth overlaid. Painting the silhouette slightly
- * oversized underneath swallows that rim.
- *
- * Drawn as a stroke on the same paths rather than as a computed offset
- * outline: it dilates in every direction at once, it costs nothing, and it
- * scales with the tooth because the placement matrix scales the stroke.
- *
- * Kept small on purpose. It also grows a little *up* past the gum line, where
- * it reads as the shadow at the gingival margin -- true at a quarter of a
- * millimetre and a dark halo at two.
- */
-const BACKDROP_DILATION = 0.06;
-
-/**
  * How much of the photograph's shading to carry onto the design.
  *
  * Short of the whole of it. The photo's light is the right *shape* but not
@@ -362,8 +321,9 @@ function grainFilter(id: string, region: Rect, toothWidth: number) {
 
   const k = GRAIN_DEPTH;
   const luma = [0.299 * k, 0.587 * k, 0.114 * k, 0, 1 - k];
-  // Alpha forced to 1: turbulence varies alpha too, and a multiply pass with
-  // holes in it would let the backdrop through exactly as the tooth body did.
+  // Alpha forced to 1: turbulence varies its alpha channel as well as its
+  // colour, and a multiply pass with holes punched in it would modulate the
+  // design's own transparency rather than only its tone.
   const matrix = [...luma, ...luma, ...luma, 0, 0, 0, 0, 1].join(' ');
 
   return (

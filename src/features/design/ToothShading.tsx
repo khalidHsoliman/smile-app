@@ -31,7 +31,7 @@
  * size or placement.
  */
 
-import { mixHex, type ToothPalette } from '../../vision/sampleToothColor.js';
+import type { ToothPalette } from '../../vision/sampleToothColor.js';
 
 interface ToothShadingProps {
   /** Prefix for the gradient ids, so multiple layers cannot collide. */
@@ -65,21 +65,17 @@ export function ToothShading({ idPrefix, upper, palette }: ToothShadingProps) {
         <stop offset="0%" stopColor={palette.cervical} />
         <stop offset="28%" stopColor={palette.base} />
         {/*
-          Opaque, and it matters that it is.
+          Translucent, and it matters that it is.
 
-          This stop used to be the highlight tone at 0.55 alpha, which let 45%
-          of whatever sat behind the tooth show through the middle of every
-          crown. For a long time that was the photograph -- roughly tooth
-          coloured, so the hole went unnoticed. Then the backdrop went in behind
-          the design and the same hole showed 45% of an oral shadow instead: a
-          dark band across every tooth, and the whole arch read as dingy.
-
-          A tooth body is opaque. The mix reproduces exactly what the old stop
-          resolved to over enamel, so the colour is unchanged and only the hole
-          is gone; translucency belongs to the highlight and proximal passes
-          layered above, which composite over an opaque body.
+          Real enamel is translucent through the middle third, and letting 45%
+          of the photograph through here is what makes the design sit *in* the
+          mouth rather than on it. It was briefly made opaque -- correctly, in
+          the sense that a body layer usually should be, and wrongly, because
+          the thing then showing through was a dark backdrop rather than the
+          photograph and every crown picked up a dull band. The backdrop is gone
+          and the translucency is back; it is the more valuable of the two.
         */}
-        <stop offset="72%" stopColor={mixHex(palette.highlight, palette.base, 0.55)} />
+        <stop offset="72%" stopColor={palette.highlight} stopOpacity="0.55" />
         <stop offset="93%" stopColor={palette.base} />
         {/* The very edge loses its dentine backing and reads translucent. */}
         <stop offset="100%" stopColor={palette.incisal} />
@@ -105,8 +101,8 @@ export function ToothShading({ idPrefix, upper, palette }: ToothShadingProps) {
         cy={upper ? '56%' : '44%'}
         r="54%"
       >
-        <stop offset="0%" stopColor={palette.highlight} stopOpacity="0.5" />
-        <stop offset="42%" stopColor={palette.highlight} stopOpacity="0.26" />
+        <stop offset="0%" stopColor={palette.highlight} stopOpacity="0.4" />
+        <stop offset="42%" stopColor={palette.highlight} stopOpacity="0.2" />
         <stop offset="100%" stopColor={palette.highlight} stopOpacity="0" />
       </radialGradient>
 
@@ -126,8 +122,14 @@ export function ToothShading({ idPrefix, upper, palette }: ToothShadingProps) {
         cy={upper ? '36%' : '64%'}
         r="21%"
       >
-        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
-        <stop offset="50%" stopColor="#ffffff" stopOpacity="0.26" />
+        {/*
+          Kept short of a blown white spot. A catchlight is the brightest thing
+          on a tooth and still only a suggestion -- at full strength it stopped
+          reading as a reflection and started reading as a hole punched in the
+          enamel.
+        */}
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.5" />
+        <stop offset="50%" stopColor="#ffffff" stopOpacity="0.17" />
         <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
       </radialGradient>
 

@@ -305,6 +305,20 @@ body { margin: 0; }
   mix-blend-mode: multiply;
 }
 
+/*
+ * Neither full-arch pass may be a click target.
+ *
+ * Both are single elements laid over the whole design, and an SVG shape is
+ * hit-testable wherever it is painted -- so the grain rect sat on top of every
+ * tooth and swallowed the pointer, and selecting a tooth to edit stopped
+ * working entirely. Per-tooth handlers are on the paths underneath; these two
+ * are decoration and must be transparent to the pointer.
+ */
+.teeth__grain,
+.teeth__blend {
+  pointer-events: none;
+}
+
 .tooth__edge {
   fill: none;
   stroke: #9c8f79;
