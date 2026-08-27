@@ -19,7 +19,7 @@ import {
   type Arch,
   type Universal,
 } from './teeth.js';
-import type { Template, ToothTemplate } from './templates/types.js';
+import type { Template, ToothFeature, ToothTemplate } from './templates/types.js';
 
 /**
  * The global fine-tune parameters.
@@ -88,6 +88,8 @@ export interface PlacedTooth {
   rotation: number;
   /** The template path this instance draws. */
   outline: string;
+  /** Its labial surface markings, in the same local frame as `outline`. */
+  features: ToothFeature[];
   /** True for teeth added to complete the run -- rendered hidden (spec 6.3). */
   auxiliary: boolean;
 }
@@ -269,6 +271,7 @@ function fitArch(
         // more they rotate. Without this the arch reads as a flat row.
         rotation: direction * splay(centreOffset, params, arch),
         outline: tooth.outline,
+        features: tooth.features,
         auxiliary: auxiliarySet.has(universal),
       });
 

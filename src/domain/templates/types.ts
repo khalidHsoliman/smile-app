@@ -22,10 +22,32 @@ import type { Universal } from '../teeth.js';
  * curve, and anchoring there means the smile arc is exact while any error
  * accumulates harmlessly up at the gum line.
  */
+/**
+ * A marking on the labial face: the surface detail a silhouette cannot carry.
+ *
+ * A tooth's outline says which tooth it is; its surface says whether it is a
+ * tooth at all. Enamel is not a flat panel -- a central incisor is divided into
+ * three lobes by two shallow developmental grooves, and a canine carries a
+ * pronounced ridge running down the middle of its face from the cusp. Those are
+ * the features that catch light across a curved surface, and without them even
+ * a correctly proportioned crown reads as a cut-out.
+ *
+ * `groove` is a depression and takes a shadow; `ridge` is raised and takes a
+ * highlight. Both are drawn as strokes over the body in the tooth's own local
+ * frame, so they scale with the crown and mirror with it.
+ */
+export interface ToothFeature {
+  kind: 'groove' | 'ridge';
+  /** Open SVG path in the local frame. */
+  path: string;
+}
+
 export interface ToothTemplate {
   universal: Universal;
   /** Closed SVG path in the local frame. 8-20 control points (spec 6.1). */
   outline: string;
+  /** Labial surface markings, drawn over the body. May be empty. */
+  features: ToothFeature[];
   /** Width relative to the central incisor at 1.0. */
   width: number;
   /** Length (incisal to gingival) in the same units as `width`. */

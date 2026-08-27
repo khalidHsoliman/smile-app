@@ -190,14 +190,26 @@ export function ToothLayer({
               }
             >
               {/*
-                Four passes over the same outline: the enamel body, the
+                Four passes over the same outline -- the enamel body, the
                 proximal fall-off that separates neighbours, the broad labial
-                sheen, and the glint on top of that. Each one clips itself to
-                the tooth by being the tooth.
+                sheen, and the glint on top of that -- each clipping itself to
+                the tooth by being the tooth, with the surface markings drawn
+                in between.
               */}
               <path className="tooth__body" d={tooth.outline} fill={`url(#${shading}-body)`} />
               <path className="tooth__proximal" d={tooth.outline} fill={`url(#${shading}-proximal)`} />
               <path className="tooth__highlight" d={tooth.outline} fill={`url(#${shading}-highlight)`} />
+              {/*
+                Surface markings, under the glint. The glint is a reflection
+                sitting on the enamel; the grooves and ridges are in it.
+              */}
+              {tooth.features.map((feature, i) => (
+                <path
+                  key={i}
+                  className={`tooth__${feature.kind}`}
+                  d={feature.path}
+                />
+              ))}
               <path className="tooth__glint" d={tooth.outline} fill={`url(#${shading}-glint)`} />
               <path className="tooth__edge" d={tooth.outline} />
             </g>
