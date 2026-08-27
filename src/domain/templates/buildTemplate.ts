@@ -108,6 +108,13 @@ interface TypeProportions {
    * dead-straight edge reads as a worn or artificial tooth.
    */
   incisalBow: number;
+  /**
+   * For a cusped tooth only: how wide the tip's flat is, as a share of the
+   * tooth's width. Zero is a true point.
+   *
+   * Ignored by the flat-edged construction, so only the canine sets it.
+   */
+  cuspFacet?: number;
 }
 
 /*
@@ -157,9 +164,28 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     incisalOffset: 0.01,
     zenithOffset: 0.09,
     zenithDrop: 0.03,
-    // The canine is pointed, not squared off -- its cusp tip is the feature.
+    // The canine is pointed, not squared off -- its cusp is the feature. How
+    // sharply it comes to a point is `cuspFacet`, below.
     incisalRounding: 0.45,
     cervicalTaper: 0.1,
+    /*
+     * A softened cusp, not a spike.
+     *
+     * Anatomically an unworn canine does come to a tip, and an earlier version
+     * drew one -- correctly, and wrongly. A smile design is a proposal for
+     * restorations, and a sharply pointed canine reads as vampiric on a real
+     * face; aesthetic dentistry routinely blunts that cusp, and a template that
+     * does not is asking the clinician to correct it on every case.
+     *
+     * Note this is a change to the *tip*, not to the construction. Dropping the
+     * canine below the cusp threshold instead was tried and is the wrong fix:
+     * it hands the tooth the flat-edged construction, whose rounding budget
+     * lands almost entirely on the distal corner, and the canine comes out as a
+     * lopsided lateral incisor. The steep mesial flank and long distal one are
+     * what make a canine read as a canine, and they only exist in the cusp
+     * branch.
+     */
+    cuspFacet: 0.18,
     // The cusp tip sits mesial of centre, so the distal slope is the longer
     // one. This is what stops a canine looking like a symmetric spike.
     distalRounding: 1.9,
@@ -198,13 +224,22 @@ const NATURAL: Record<ToothType, TypeProportions> = {
  * makes it read as cosmetic rather than natural.
  */
 const HOLLYWOOD: Record<ToothType, TypeProportions> = {
-  // Shorter and wider: width:length rises to 0.88, the squarer cosmetic look.
-  // The near-symmetric corners and flat incisal edges are the point -- that
-  // deliberate uniformity is exactly what makes the set read as cosmetic.
-  central: { ...NATURAL.central, length: 1.14, incisalRounding: 0.08, cervicalTaper: 0.07, distalRounding: 1.3, incisalBow: 0.012 },
-  lateral: { ...NATURAL.lateral, width: 0.72, length: 1.12, incisalOffset: 0.05, incisalRounding: 0.1, cervicalTaper: 0.08, distalRounding: 1.25, incisalBow: 0.015 },
-  // Blunted rather than pointed -- below the isCusp threshold on purpose.
-  canine: { ...NATURAL.canine, width: 0.64, length: 1.15, incisalOffset: 0.0, incisalRounding: 0.28, cervicalTaper: 0.07, distalRounding: 1.2, incisalBow: 0.01 },
+  /*
+   * Shorter and wider: width:length rises to 0.88, the squarer cosmetic look.
+   * The near-symmetric corners and flatter incisal edges are the point -- that
+   * deliberate uniformity is what makes the set read as cosmetic rather than
+   * natural.
+   *
+   * Squarer, not sharp. An earlier version set the corner rounding almost to
+   * zero, which produced blocks with no edge at all -- past "cosmetic" and into
+   * something no ceramist would layer. Even a Hollywood veneer carries a small
+   * line angle at the incisal corner; it is what stops the tooth reading as a
+   * printed rectangle.
+   */
+  central: { ...NATURAL.central, length: 1.14, incisalRounding: 0.15, cervicalTaper: 0.07, distalRounding: 1.35, incisalBow: 0.018 },
+  lateral: { ...NATURAL.lateral, width: 0.72, length: 1.12, incisalOffset: 0.05, incisalRounding: 0.17, cervicalTaper: 0.08, distalRounding: 1.3, incisalBow: 0.02 },
+  // Blunted rather than pointed -- below the cusp threshold on purpose.
+  canine: { ...NATURAL.canine, width: 0.64, length: 1.15, incisalOffset: 0.0, incisalRounding: 0.26, cervicalTaper: 0.07, distalRounding: 1.25, incisalBow: 0.014 },
   premolar: { ...NATURAL.premolar, width: 0.58, length: 1.08, incisalOffset: 0.09, incisalRounding: 0.18, distalRounding: 1.15 },
   molar: { ...NATURAL.molar, width: 0.62, length: 1.05, incisalOffset: 0.15, incisalRounding: 0.2, distalRounding: 1.1 },
 };
@@ -248,12 +283,23 @@ function buildOutline(p: TypeProportions, side: -1 | 1): {
   const distalRound = Math.min(0.92, meanRound * p.distalRounding);
   const mesialRound = Math.max(0.02, meanRound * 2 - distalRound);
 
-  // A cusp meets at a single tip rather than along a flat edge. The tip sits
-  // mesial of centre on a real canine, so the distal slope is the longer of the
-  // two -- that offset is what stops it looking like a symmetric spike.
+  /*
+   * A cusp meets at a tip rather than along a full-width flat edge. The tip
+   * sits mesial of centre on a real canine, so the distal slope is the longer
+   * of the two -- that offset is what stops it looking like a symmetric spike.
+   *
+   * `cuspFacet` gives the tip a short flat of its own, centred on the tip
+   * position. At zero the two flanks meet at one point; widening it blunts the
+   * cusp without touching the slopes on either side of it.
+   */
   const cuspTipX = isCusp ? mesialSign * halfWidth * 0.16 : 0;
-  const mesialFlat = isCusp ? cuspTipX * mesialSign : halfWidth * (1 - mesialRound);
-  const distalFlat = isCusp ? -cuspTipX * mesialSign : halfWidth * (1 - distalRound);
+  const facet = isCusp ? halfWidth * (p.cuspFacet ?? 0) : 0;
+  const mesialFlat = isCusp
+    ? cuspTipX * mesialSign + facet
+    : halfWidth * (1 - mesialRound);
+  const distalFlat = isCusp
+    ? -cuspTipX * mesialSign + facet
+    : halfWidth * (1 - distalRound);
 
   // How far each incisal corner rises above the lowest point of the edge. The
   // rounder corner rises further, which is what makes the rounding read.
@@ -338,11 +384,18 @@ function buildOutline(p: TypeProportions, side: -1 | 1): {
   ];
 
   if (isCusp) {
-    // Close the cusp: both flanks already end at the tip's x, so this only has
-    // to run the short distal slope back to it. Keeping the control close to
-    // the tip preserves the point instead of rounding it off.
+    /*
+     * Close across the cusp tip. The control sits at the tip's own x and on the
+     * incisal line, so a zero facet still meets at a point and a wide one draws
+     * a straight flat.
+     *
+     * It used to sit at y = -halfWidth * 0.10, *past* the incisal edge, which
+     * pulled the tip into a downward spike below the line every other tooth
+     * bites on -- the vampire fang. The edge is the anchor the whole arch is
+     * laid along; nothing may hang below it.
+     */
     path.push(
-      `Q ${round(cuspTipX * 0.4)} ${round(-halfWidth * 0.10)}` +
+      `Q ${round(cuspTipX)} ${round(bowY * 2)}` +
         ` ${round(mx(mesialFlat))} ${round(0)}`,
     );
   } else {
