@@ -75,7 +75,8 @@ export function buildDesignSvg(options: DesignSvgOptions): string {
  */
 const TOOTH_STYLES = `
 .tooth[data-auxiliary]{display:none}
-.tooth__body,.tooth__proximal,.tooth__highlight{stroke:none}
+.tooth__body,.tooth__proximal,.tooth__highlight,.tooth__glint{stroke:none}
+.teeth__grain{mix-blend-mode:multiply}
 .teeth{isolation:isolate}
 .teeth__blend{mix-blend-mode:soft-light}
 .tooth__edge{fill:none;stroke:#9c8f79;stroke-width:0.9;stroke-opacity:0.5;vector-effect:non-scaling-stroke}

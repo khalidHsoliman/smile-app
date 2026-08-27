@@ -142,14 +142,14 @@ export function ToothLayer({
       <ToothShading idPrefix={`${clipId}-upper`} upper palette={palette} />
       <ToothShading idPrefix={`${clipId}-lower`} upper={false} palette={palette} />
 
-      {useBlend && (
+      {designBounds !== null && (
         <defs>
           {/*
-            The teeth themselves, as a clip -- the blend pass must not touch the
-            photo between or around them. Auxiliary teeth are excluded here
-            rather than hidden with CSS: `display:none` on a clip path's child
-            is not reliably honoured, and a stray injected anchor would open a
-            hole in the shading.
+            The teeth themselves, as a clip. Both full-arch passes need it --
+            the grain must not speckle the lips and the blend must not touch the
+            photo between the teeth. Auxiliary teeth are excluded here rather
+            than hidden with CSS: `display:none` on a clip path's child is not
+            reliably honoured, and a stray injected anchor would open a hole.
           */}
           <clipPath id={`${clipId}-teeth`} clipPathUnits="userSpaceOnUse">
             {placed
@@ -158,7 +158,9 @@ export function ToothLayer({
                 <path key={tooth.universal} d={tooth.outline} transform={matrix} />
               ))}
           </clipPath>
-          {blendFilter(`${clipId}-shading`, palette, designBounds, toothWidth)}
+          {grainFilter(`${clipId}-grain`, designBounds, toothWidth)}
+          {useBlend &&
+            blendFilter(`${clipId}-shading`, palette, designBounds, toothWidth)}
         </defs>
       )}
 
@@ -208,17 +210,36 @@ export function ToothLayer({
               }
             >
               {/*
-                Three passes over the same outline: the enamel body, the
-                proximal fall-off that separates neighbours, and the labial
-                highlight on top.
+                Four passes over the same outline: the enamel body, the
+                proximal fall-off that separates neighbours, the broad labial
+                sheen, and the glint on top of that. Each one clips itself to
+                the tooth by being the tooth.
               */}
               <path className="tooth__body" d={tooth.outline} fill={`url(#${shading}-body)`} />
               <path className="tooth__proximal" d={tooth.outline} fill={`url(#${shading}-proximal)`} />
               <path className="tooth__highlight" d={tooth.outline} fill={`url(#${shading}-highlight)`} />
+              <path className="tooth__glint" d={tooth.outline} fill={`url(#${shading}-glint)`} />
               <path className="tooth__edge" d={tooth.outline} />
             </g>
           );
         })}
+
+        {/*
+          Enamel grain, over the whole arch in one pass rather than per tooth:
+          it is a property of the material, not of any one crown, and a single
+          rect over the design costs one filter instead of a dozen.
+        */}
+        {designBounds !== null && (
+          <rect
+            className="teeth__grain"
+            x={designBounds.x}
+            y={designBounds.y}
+            width={designBounds.width}
+            height={designBounds.height}
+            clipPath={`url(#${clipId}-teeth)`}
+            filter={`url(#${clipId}-grain)`}
+          />
+        )}
 
         {useBlend && (
           <image
@@ -296,6 +317,75 @@ const BACKDROP_DILATION = 0.06;
  * little cleaner than the photograph it sits in.
  */
 const BLEND_STRENGTH = 0.75;
+
+/**
+ * The size of the enamel grain, in central-incisor widths.
+ *
+ * Wider than it is tall, on purpose. Enamel is not evenly speckled: it carries
+ * perikymata, the fine horizontal ridges left by the tooth's own growth, and
+ * they are what a photograph of a real tooth shows under a flash. Isotropic
+ * noise reads as film grain or dirt on the lens; noise stretched along the
+ * tooth's width reads as surface.
+ *
+ * At these periods the features are roughly a millimetre across and a third of
+ * one tall on an 8.5mm central -- visible as texture at report resolution,
+ * invisible as individual specks.
+ */
+const GRAIN_PERIOD = { x: 0.115, y: 0.038 } as const;
+
+/**
+ * How deep the grain cuts, as a fraction of the tooth's drawn colour.
+ *
+ * Small, and it has to be. The grain multiplies, and multiplying can only take
+ * light away, so its *average* is a dimming of half this much however finely it
+ * is tuned. Three or four percent is texture; more is a dirty tooth, and this
+ * arch has already been dingy once.
+ */
+const GRAIN_DEPTH = 0.07;
+
+/**
+ * The enamel grain, as a filter over the design.
+ *
+ * Turbulence rather than a tiled image: `baseFrequency` is specified in user
+ * units, so the pattern is defined geometrically and rasterizes the same at any
+ * output resolution -- the same reason the gloss is built from gradients rather
+ * than from a lighting filter. It also means no texture asset to license, which
+ * is not nothing given where the demo photographs came from.
+ *
+ * The noise is desaturated and remapped into a narrow band just below white, so
+ * multiplying it over the design modulates the enamel instead of colouring it.
+ */
+function grainFilter(id: string, region: Rect, toothWidth: number) {
+  // One period in pixels, inverted -- `baseFrequency` is cycles per user unit.
+  const frequency = (period: number) =>
+    toothWidth > 0 ? 1 / (period * toothWidth) : 0;
+
+  const k = GRAIN_DEPTH;
+  const luma = [0.299 * k, 0.587 * k, 0.114 * k, 0, 1 - k];
+  // Alpha forced to 1: turbulence varies alpha too, and a multiply pass with
+  // holes in it would let the backdrop through exactly as the tooth body did.
+  const matrix = [...luma, ...luma, ...luma, 0, 0, 0, 0, 1].join(' ');
+
+  return (
+    <filter
+      id={id}
+      filterUnits="userSpaceOnUse"
+      x={region.x}
+      y={region.y}
+      width={region.width}
+      height={region.height}
+      colorInterpolationFilters="sRGB"
+    >
+      <feTurbulence
+        type="fractalNoise"
+        baseFrequency={`${frequency(GRAIN_PERIOD.x)} ${frequency(GRAIN_PERIOD.y)}`}
+        numOctaves={3}
+        seed={7}
+      />
+      <feColorMatrix type="matrix" values={matrix} />
+    </filter>
+  );
+}
 
 /**
  * How far the shading map is blurred, in central-incisor widths.

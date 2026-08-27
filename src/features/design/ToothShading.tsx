@@ -14,6 +14,18 @@
  * later polish pass and warns it must not shape the MVP; gradients get most of
  * the credibility for none of the architectural cost.
  *
+ * And deliberately no `feSpecularLighting`, which is the obvious way to do this
+ * and the wrong one. Its whole appeal is that it derives a highlight from the
+ * shape's own silhouette -- but every browser computes the surface normals from
+ * the *device* pixel grid, and `kernelUnitLength`, the attribute that exists to
+ * fix exactly that, is ignored by Chromium and Firefox alike. So the same tooth
+ * would come out glossy on screen at viewport scale and nearly matte in a
+ * report rendered at the photograph's native resolution. An export that does
+ * not match what the clinician approved is the worst bug this application can
+ * have, so the gloss is built from geometry instead: gradients in the tooth's
+ * own bounding box, which follow the silhouette because the outline clips them,
+ * and which rasterize identically at any scale.
+ *
  * The gradients are defined in the tooth's own local space
  * (`objectBoundingBox`), so one definition serves every tooth regardless of its
  * size or placement.
@@ -74,21 +86,50 @@ export function ToothShading({ idPrefix, upper, palette }: ToothShadingProps) {
       </linearGradient>
 
       {/*
-        Labial highlight: an off-centre vertical band, brightest just above the
-        middle, fading out well before the edges so it never reads as a stripe.
+        Labial sheen: the broad, soft reflection off the middle of the crown.
+
+        Radial rather than the vertical band this replaced. A band is the same
+        width at the gum as at the biting edge, which is what made the old teeth
+        read as flat cut-outs -- a stripe painted on a shape rather than light
+        falling across one. A radial pool has a centre and falls off in every
+        direction, so it reads as a curved surface; the outline clips it, so it
+        takes the tooth's own shape for free.
+
+        Centred a little toward the biting edge, where the labial surface
+        actually bulges (`bulgeHeight` in the outline generator puts the widest
+        point in the incisal third).
       */}
-      <linearGradient
+      <radialGradient
         id={`${idPrefix}-highlight`}
-        x1="0%"
-        y1="0%"
-        x2="100%"
-        y2="0%"
+        cx="45%"
+        cy={upper ? '56%' : '44%'}
+        r="54%"
       >
-        <stop offset="0%" stopColor={palette.highlight} stopOpacity="0" />
-        <stop offset="34%" stopColor={palette.highlight} stopOpacity="0.42" />
-        <stop offset="52%" stopColor={palette.highlight} stopOpacity="0.16" />
+        <stop offset="0%" stopColor={palette.highlight} stopOpacity="0.5" />
+        <stop offset="42%" stopColor={palette.highlight} stopOpacity="0.26" />
         <stop offset="100%" stopColor={palette.highlight} stopOpacity="0" />
-      </linearGradient>
+      </radialGradient>
+
+      {/*
+        The glint: the small, hard catchlight enamel gets from a flash.
+
+        This is the single detail that most says "wet". The sheen above says the
+        surface is curved; only a tight, near-white spot says it is *glossy*
+        rather than matte. Kept small and placed above the sheen's centre, which
+        is where it sits on a photograph lit from above -- and white rather than
+        the palette's highlight tone, because a specular reflection is the
+        colour of the light, not of the thing reflecting it.
+      */}
+      <radialGradient
+        id={`${idPrefix}-glint`}
+        cx="42%"
+        cy={upper ? '36%' : '64%'}
+        r="21%"
+      >
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
+        <stop offset="50%" stopColor="#ffffff" stopOpacity="0.26" />
+        <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+      </radialGradient>
 
       {/*
         Proximal shading: the mesial and distal edges curve away from the

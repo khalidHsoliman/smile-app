@@ -271,7 +271,8 @@ body { margin: 0; }
  */
 .tooth__body,
 .tooth__proximal,
-.tooth__highlight { stroke: none; }
+.tooth__highlight,
+.tooth__glint { stroke: none; }
 
 /*
  * The blend pass: the photograph's own light, laid back over the design (see
@@ -293,6 +294,15 @@ body { margin: 0; }
    photograph underneath it. */
 .teeth {
   isolation: isolate;
+}
+
+/*
+ * The enamel grain multiplies over the design (see `grainFilter`). Multiply is
+ * right here, unlike for the blend pass: texture on a tooth is where the light
+ * is *not*, and the pass is shallow enough that only darkening is needed.
+ */
+.teeth__grain {
+  mix-blend-mode: multiply;
 }
 
 .tooth__edge {
