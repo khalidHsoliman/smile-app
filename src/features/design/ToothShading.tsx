@@ -19,7 +19,7 @@
  * size or placement.
  */
 
-import type { ToothPalette } from '../../vision/sampleToothColor.js';
+import { mixHex, type ToothPalette } from '../../vision/sampleToothColor.js';
 
 interface ToothShadingProps {
   /** Prefix for the gradient ids, so multiple layers cannot collide. */
@@ -52,7 +52,22 @@ export function ToothShading({ idPrefix, upper, palette }: ToothShadingProps) {
       >
         <stop offset="0%" stopColor={palette.cervical} />
         <stop offset="28%" stopColor={palette.base} />
-        <stop offset="72%" stopColor={palette.highlight} stopOpacity="0.55" />
+        {/*
+          Opaque, and it matters that it is.
+
+          This stop used to be the highlight tone at 0.55 alpha, which let 45%
+          of whatever sat behind the tooth show through the middle of every
+          crown. For a long time that was the photograph -- roughly tooth
+          coloured, so the hole went unnoticed. Then the backdrop went in behind
+          the design and the same hole showed 45% of an oral shadow instead: a
+          dark band across every tooth, and the whole arch read as dingy.
+
+          A tooth body is opaque. The mix reproduces exactly what the old stop
+          resolved to over enamel, so the colour is unchanged and only the hole
+          is gone; translucency belongs to the highlight and proximal passes
+          layered above, which composite over an opaque body.
+        */}
+        <stop offset="72%" stopColor={mixHex(palette.highlight, palette.base, 0.55)} />
         <stop offset="93%" stopColor={palette.base} />
         {/* The very edge loses its dentine backing and reads translucent. */}
         <stop offset="100%" stopColor={palette.incisal} />

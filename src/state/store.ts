@@ -202,8 +202,16 @@ export interface AppState {
     lipMask: boolean;
     /**
      * Carry the photograph's own light onto the design, so it sits *in* the
-     * photo rather than on top of it. On by default; a viewing preference like
-     * the mask, and off shows the design's raw drawn colour.
+     * photo rather than on top of it.
+     *
+     * A viewing preference like the mask, and **off** by default. It is a
+     * genuine improvement on some photographs and a muddier arch on others,
+     * depending on how much of the design covers lip and shadow rather than the
+     * old teeth, so the honest default is the design's own drawn colour and the
+     * clinician turns the pass on if it flatters this case.
+     *
+     * Note it is not what hides the teeth being replaced -- the backdrop in
+     * `ToothLayer` does that, unconditionally.
      */
     photoBlend: boolean;
     /**
@@ -450,7 +458,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     params: { ...DEFAULT_PARAMS },
     teethOpacity: 0.9,
     lipMask: true,
-    photoBlend: true,
+    photoBlend: false,
     palette: DEFAULT_PALETTE,
     paletteSampled: false,
     sampledPalette: null,
@@ -1093,7 +1101,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         params: { ...DEFAULT_PARAMS },
         teethOpacity: 0.9,
         lipMask: true,
-        photoBlend: true,
+        photoBlend: false,
         palette: DEFAULT_PALETTE,
         paletteSampled: false,
         sampledPalette: null,

@@ -274,13 +274,19 @@ body { margin: 0; }
 .tooth__highlight { stroke: none; }
 
 /*
- * The blend pass: the photograph's own light, multiplied back over the design
- * (see `blendFilter` in ToothLayer). Multiply rather than a softer mode because
- * the design is nearly white, and every mode that blends toward the backdrop
- * compresses to nothing up there -- the shadows simply would not show.
+ * The blend pass: the photograph's own light, laid back over the design (see
+ * `blendFilter` in ToothLayer).
+ *
+ * Soft light, not multiply. Multiply can only darken -- its source tops out at
+ * white, which leaves the backdrop alone -- so an arch could come out of the
+ * pass duller than it was drawn but never brighter, and it did. Soft light is
+ * symmetric about a mid-grey source, so a map centred on the photograph's own
+ * enamel is neutral on average. It also compresses hard near white, which is a
+ * feature here rather than the drawback it looked like: the design is nearly
+ * white, so the pass cannot wreck a shade however wrong the map is.
  */
 .teeth__blend {
-  mix-blend-mode: multiply;
+  mix-blend-mode: soft-light;
 }
 
 /* Isolated so the blend pass finds the design as its backdrop, never the

@@ -315,16 +315,21 @@ const BLEND_STRENGTH = 0.75;
 const BLEND_BLUR = 0.22;
 
 /**
- * The darkest the shading may take a tooth, as a fraction of its drawn colour.
+ * How hard the shading map swings either side of neutral.
  *
- * Without a floor, a design tooth that covers something genuinely dark in the
- * photograph -- the oral cavity behind a missing tooth, a black triangle, a
- * shadowed diastema -- would be multiplied down to near black. Those are
- * precisely the places a smile design exists to fill in, so the one thing the
- * blend must never do is reopen them. At this floor a hole reads as a tooth in
- * deep shadow, which is honest, rather than as no tooth at all.
+ * The map is centred so that photograph-as-bright-as-its-own-teeth leaves the
+ * design untouched, brighter lightens it and darker darkens it. That centring
+ * is the important part, and it replaced a version that could only darken:
+ * multiplying by a map that tops out at 1.0 means every pixel either dims or
+ * stays put, so the arch as a whole could only ever come out duller than it was
+ * drawn. It duly did.
+ *
+ * Below 1.0 because the design covers ground the original teeth did not -- it
+ * runs up under the lip and past the old incisal edges, where the photograph is
+ * lip and shadow rather than enamel. Taking that at face value would drag the
+ * top of every crown down toward the lip's own darkness.
  */
-const SHADING_FLOOR = 0.45;
+const SHADING_CONTRAST = 0.7;
 
 /**
  * The filter that turns the photograph into a shading map.
@@ -353,19 +358,22 @@ function blendFilter(
   toothWidth: number,
 ) {
   // Where the photo's own enamel sits on the 0..1 scale -- the level that must
-  // come through as "unchanged". Guarded: a near-black sample would divide the
-  // slope into absurdity.
+  // come through as "unchanged". Guarded: a near-black sample would put the
+  // centring somewhere absurd.
   const mid = Math.max(0.25, luminanceOf(palette.base));
-  const k = (1 - SHADING_FLOOR) / mid;
+  const k = SHADING_CONTRAST;
 
   /*
-   * Desaturating and rescaling in one matrix rather than a `feColorMatrix`
-   * followed by a `feComponentTransfer`. Each output channel takes the Rec.601
-   * luminance of the input, scaled by `k`, with the floor supplied by the
-   * constant column -- arithmetically identical to the two-step version, over a
-   * full-resolution photograph, in one pass instead of two.
+   * Desaturate and recentre in one matrix. Each output channel takes the
+   * Rec.601 luminance of the input and maps `mid` to 0.5 -- the value soft
+   * light leaves its backdrop alone at -- so the design is lightened where the
+   * photograph is brighter than its own enamel and darkened where it is darker.
+   *
+   * One `feColorMatrix` rather than a colour matrix plus a component transfer:
+   * arithmetically identical, over a full-resolution photograph, in one pass
+   * instead of two.
    */
-  const row = [0.299 * k, 0.587 * k, 0.114 * k, 0, SHADING_FLOOR];
+  const row = [0.299 * k, 0.587 * k, 0.114 * k, 0, 0.5 - k * mid];
   const matrix = [...row, ...row, ...row, 0, 0, 0, 1, 0].join(' ');
 
   const blur = toothWidth * BLEND_BLUR;

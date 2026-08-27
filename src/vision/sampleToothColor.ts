@@ -260,6 +260,19 @@ export function paletteFromBase(base: string, brightness = 0): ToothPalette {
 }
 
 /**
+ * Mix two hex colours. `t` is how much of `a` to take.
+ */
+export function mixHex(a: string, b: string, t: number): string {
+  const x = fromHex(a);
+  const y = fromHex(b);
+  return toHex({
+    r: x.r * t + y.r * (1 - t),
+    g: x.g * t + y.g * (1 - t),
+    b: x.b * t + y.b * (1 - t),
+  });
+}
+
+/**
  * The dark of the mouth, behind the design.
  *
  * A design has to cover the teeth it replaces, and covering them with the
