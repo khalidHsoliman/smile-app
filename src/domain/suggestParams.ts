@@ -90,10 +90,15 @@ const SPAN_OF_APERTURE = 0.58;
  * Two thirds is what a photograph shows; this sits under it because the depth
  * it scales is measured to the detector's lower-lip contour, which follows the
  * wet line rather than the visible top of the lip. Every millimetre of that
- * overshoot became a millimetre of arch hung too low, and the clinician moved
- * it back up on every case.
+ * overshoot becomes a millimetre of arch hung too low.
+ *
+ * Bracketed rather than reasoned. At 0.72 the arch sat too low on real
+ * photographs and was moved up on every case; at 0.62 it sat too high and was
+ * moved down. Two observations either side is worth more than any amount of
+ * argument about where the detector's contour really falls, so this is the
+ * midpoint of them.
  */
-const DROP_OF_APERTURE = 0.62;
+const DROP_OF_APERTURE = 0.67;
 
 /**
  * How much of the lower lip's curvature `smileCurve` is asked to supply.
