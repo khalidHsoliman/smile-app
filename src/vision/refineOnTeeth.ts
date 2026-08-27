@@ -14,20 +14,50 @@
  * thing we actually care about lining up.
  *
  * Two stages, not one: correlation needs a good starting point to lock onto the
- * right peak, and the landmark fit provides it. This only ever nudges.
+ * right peak, and the landmark fit provides it.
+ *
+ * **Scale as well as position.** For a long time this stage returned a
+ * translation and nothing else, on the assumption that the landmark fit already
+ * had the size right. It does not, and cannot: a retracted photograph is
+ * normally taken closer than a smile photograph, and moving the camera in is
+ * not a similarity -- the face's periphery expands relative to its centre. A
+ * similarity fitted on the eyes and the nose then absorbs that into a scale
+ * that is right for the upper face and wrong at the mouth, and no translation
+ * whatever can repair it. The symptom is unmistakable once you know it: the
+ * overlay cannot be made to line up by dragging, at any position, because the
+ * teeth are simply the wrong size.
+ *
+ * So the teeth get the last word on how big they are, not just on where.
  */
 
 import { matchTemplate } from '../domain/correlate.js';
 import { alignProfiles, fallingEdges, rowProfile } from '../domain/enamelProfile.js';
-import type { Matrix2D, Rect, Vec2 } from '../domain/geometry.js';
+import {
+  compose,
+  translation,
+  vec,
+  type Matrix2D,
+  type Rect,
+  type Vec2,
+} from '../domain/geometry.js';
 
 export interface Refinement {
-  /** Additional translation in smile-photo pixels. */
-  dx: number;
-  dy: number;
+  /**
+   * The correction, in smile-photo space, to apply *after* the coarse fit.
+   *
+   * A matrix rather than a pair of offsets, because the correction now carries
+   * a scale about the mouth as well as a translation. Returned already composed
+   * so the one place that knows how the images were rasterised is also the one
+   * place that turns that into geometry -- this is where the sign errors live.
+   */
+  correction: Matrix2D;
+  /** The scale it applied to the mouth region. 1 means the coarse fit had it. */
+  zoom: number;
+  /** How far the mouth moved, in smile-photo pixels. */
+  moved: number;
   /** Correlation at the chosen shift, -1 to 1. */
   score: number;
-  /** True when the incisal edge could not be located and `dy` is zero. */
+  /** True when the biting edge could not be located and the height is unchanged. */
   verticalIsManual: boolean;
 }
 
@@ -77,6 +107,37 @@ const SEARCH_MARGIN_FRACTION = 0.30;
 const ACCEPT_SCORE = 0.35;
 
 /**
+ * Working width for the scale search, in pixels across the mouth.
+ *
+ * Half the resolution of the final pass, because the search is run once per
+ * candidate scale and correlation cost is quadratic in the window. Finding
+ * *which* scale fits does not need the detail that measuring the final offset
+ * does -- at this width the whole sweep costs less than one full-resolution
+ * pass, which is the difference between a scale search and a stall.
+ */
+const SCAN_WIDTH = 90;
+
+/** Shift stride during the scale sweep. Same reasoning as `SCAN_WIDTH`. */
+const SCAN_STEP = 3;
+
+/**
+ * How far the mouth's scale may be corrected, and how finely.
+ *
+ * Twenty percent is generous for the effect being corrected -- the difference
+ * between a portrait distance and a close retracted shot -- and it is bounded
+ * because an unbounded scale search will happily shrink the template until it
+ * matches a patch of uniform enamel at a great score and no meaning.
+ *
+ * The sweep is coarse then fine: a pass at 5% steps to find the neighbourhood,
+ * then 1.25% steps around the winner. A step of 1.25% is about a tenth of a
+ * millimetre on a central incisor, which is past the point where the rest of
+ * the pipeline can tell the difference.
+ */
+const ZOOM_RANGE = 0.2;
+const ZOOM_COARSE_STEP = 0.05;
+const ZOOM_FINE_STEP = 0.0125;
+
+/**
  * Minimum correlation between the two edge profiles to trust the vertical.
  *
  * Separate from `ACCEPT_SCORE`, and separately reported: the sideways match and
@@ -116,72 +177,103 @@ export function refineOnTeeth(
   const template = mouthWindow(aperture);
   if (template.width < 20 || template.height < 8) return { kind: 'unavailable' };
 
-  const scale = WORK_WIDTH / template.width;
-  const tw = Math.max(8, Math.round(template.width * scale));
-  const th = Math.max(6, Math.round(template.height * scale));
-
   /*
-   * The search area is the template's region grown on every side.
+   * The mouth's centre, and the point the scale correction turns about.
    *
-   * Sized from the *mouth width* rather than the template's own height, because
-   * the offset being hunted is a whole-mouth displacement and a low smile line
-   * gives a template only a few pixels tall -- padding proportionally would
-   * leave nowhere to search. This is the bug that produced "no clear teeth to
-   * match on" on a real case: the search window was the same narrow slit as the
-   * template, so the retracted photo's lower-sitting mouth simply was not
-   * inside it.
+   * Correcting scale about the mouth rather than about the image origin is what
+   * keeps this a refinement. Zooming about the centre of the region being
+   * matched leaves that centre where the landmark fit put it and changes only
+   * the size of what surrounds it, so the scale and the translation stay
+   * independent and each measures one thing.
    */
-  const margin = Math.max(10, Math.round(tw * SEARCH_MARGIN_FRACTION));
-  const sw = tw + margin * 2;
-  const sh = th + margin * 2;
-
-  // The smile photo's visible teeth: the template.
-  const fixed = enamelMap(smileImage, tw, th, (ctx) => {
-    ctx.scale(scale, scale);
-    ctx.translate(-template.x, -template.y);
-  });
-
-  /*
-   * The retracted photo warped into smile-photo space by the coarse transform,
-   * over the larger search area. Rasterising once and sliding the template is
-   * far cheaper than re-warping per candidate position, and the residual being
-   * corrected is a translation.
-   */
-  const search = enamelMap(
-    retractedImage,
-    sw,
-    sh,
-    (ctx) => {
-      ctx.translate(margin, margin);
-      ctx.scale(scale, scale);
-      ctx.translate(-template.x, -template.y);
-      ctx.transform(coarse.a, coarse.b, coarse.c, coarse.d, coarse.e, coarse.f);
-    },
-    retractedSize,
+  const centre = vec(
+    template.x + template.width / 2,
+    template.y + template.height / 2,
   );
 
-  if (!fixed || !search) return { kind: 'unavailable' };
+  /** The smile photo's visible teeth, at a given working width: the template. */
+  const templateMap = (plan: Plan) =>
+    enamelMap(smileImage, plan.tw, plan.th, (ctx) => {
+      ctx.scale(plan.workScale, plan.workScale);
+      ctx.translate(-template.x, -template.y);
+    });
+
+  /*
+   * The retracted photo warped into smile-photo space by the coarse transform
+   * and then scaled by `zoom` about the mouth, over the larger search area.
+   * Rasterising once per candidate and sliding the template is far cheaper than
+   * re-warping per position, and the residual left after the zoom is a
+   * translation.
+   */
+  const searchMap = (plan: Plan, zoom: number) =>
+    enamelMap(
+      retractedImage,
+      plan.sw,
+      plan.sh,
+      (ctx) => {
+        ctx.translate(plan.margin, plan.margin);
+        ctx.scale(plan.workScale, plan.workScale);
+        ctx.translate(-template.x, -template.y);
+        ctx.translate(centre.x, centre.y);
+        ctx.scale(zoom, zoom);
+        ctx.translate(-centre.x, -centre.y);
+        ctx.transform(coarse.a, coarse.b, coarse.c, coarse.d, coarse.e, coarse.f);
+      },
+      retractedSize,
+    );
+
+  // ---------------------------------------------------------------- the scale
+  const scan = planFor(SCAN_WIDTH, template);
+  const scanFixed = templateMap(scan);
+  if (!scanFixed) return { kind: 'unavailable' };
 
   /*
    * Both sides must actually contain teeth. Score alone cannot tell "the teeth
    * matched" from "something matched": a closed mouth still has a strong lip
    * boundary, and one correlated at 0.44 against a tooth edge in testing.
-   */
-  /*
+   *
    * Different bars, because the two windows are different things. The template
    * *is* the mouth opening, so it should be mostly tooth -- a slack bar there
    * let a closed mouth through in testing. The search area is mostly padding by
    * construction, so real enamel is a small share of it and demanding a
    * mouthful would reject good cases.
    */
+  if (!hasEnamel(scanFixed)) return { kind: 'no-teeth' };
+
+  const scoreZoom = (zoom: number): number => {
+    const map = searchMap(scan, zoom);
+    if (!map || !hasEnamel(map)) return -Infinity;
+    return matchTemplate(
+      scanFixed,
+      scan.tw,
+      scan.th,
+      map,
+      scan.sw,
+      scan.sh,
+      SCAN_STEP,
+    ).score;
+  };
+
+  const coarseZoom = bestOf(sweep(1, ZOOM_RANGE, ZOOM_COARSE_STEP), scoreZoom);
+  if (coarseZoom === null) return { kind: 'no-teeth' };
+
+  const zoom =
+    bestOf(sweep(coarseZoom, ZOOM_COARSE_STEP, ZOOM_FINE_STEP), scoreZoom) ??
+    coarseZoom;
+
+  // ------------------------------------------------------------- the position
+  const work = planFor(WORK_WIDTH, template);
+  const fixed = templateMap(work);
+  const search = searchMap(work, zoom);
+  if (!fixed || !search) return { kind: 'unavailable' };
   if (!hasEnamel(fixed) || !hasEnamel(search)) return { kind: 'no-teeth' };
 
-  const found = matchTemplate(fixed, tw, th, search, sw, sh);
+  const found = matchTemplate(fixed, work.tw, work.th, search, work.sw, work.sh);
   if (found.score < ACCEPT_SCORE) return { kind: 'weak', score: found.score };
 
   // Sideways: the interdental gaps are effectively a barcode and the template
   // locks onto them, so this correction is trustworthy on its own.
-  const dx = (margin - found.x) / scale;
+  const dx = (work.margin - found.x) / work.workScale;
 
   /*
    * Vertically: correlate the two photographs' falling edges.
@@ -202,35 +294,116 @@ export function refineOnTeeth(
    * photographs; the corners bring in the buccal corridor, the retractor and
    * the cheek, none of which correspond.
    */
-  const anteriorFrom = tw * (0.5 - ANTERIOR_SHARE / 2);
-  const anteriorTo = tw * (0.5 + ANTERIOR_SHARE / 2);
+  const anteriorFrom = work.tw * (0.5 - ANTERIOR_SHARE / 2);
+  const anteriorTo = work.tw * (0.5 + ANTERIOR_SHARE / 2);
 
   const templateEdges = fallingEdges(
-    rowProfile(fixed, tw, th, anteriorFrom, anteriorTo),
+    rowProfile(fixed, work.tw, work.th, anteriorFrom, anteriorTo),
   );
   const searchEdges = fallingEdges(
-    rowProfile(search, sw, sh, found.x + anteriorFrom, found.x + anteriorTo),
+    rowProfile(search, work.sw, work.sh, found.x + anteriorFrom, found.x + anteriorTo),
   );
 
   /*
    * A perfectly aligned pair puts the template's first row at search row
    * `margin`, so the alignment is measured from there and a shift of zero means
-   * the landmark fit already had the vertical right.
+   * the coarse fit already had the vertical right.
    */
-  const vertical = alignProfiles(templateEdges, searchEdges, margin, margin);
+  const vertical = alignProfiles(
+    templateEdges,
+    searchEdges,
+    work.margin,
+    work.margin,
+  );
 
   let dy = 0;
   let verticalIsManual = true;
 
   if (vertical && vertical.score >= ACCEPT_VERTICAL) {
-    dy = -vertical.shift / scale;
+    dy = -vertical.shift / work.workScale;
     verticalIsManual = false;
   }
 
+  /*
+   * Scale about the mouth's centre, then translate. In that order: the shift
+   * was measured on an image that had already been zoomed, so it is a
+   * correction to the zoomed result and not to the coarse one.
+   */
+  const zoomAboutMouth: Matrix2D = {
+    a: zoom,
+    b: 0,
+    c: 0,
+    d: zoom,
+    e: centre.x * (1 - zoom),
+    f: centre.y * (1 - zoom),
+  };
+
   return {
     kind: 'refined',
-    refinement: { dx, dy, score: found.score, verticalIsManual },
+    refinement: {
+      correction: compose(zoomAboutMouth, translation(dx, dy)),
+      zoom,
+      moved: Math.hypot(dx, dy),
+      score: found.score,
+      verticalIsManual,
+    },
   };
+}
+
+/** The raster geometry for one working width. */
+interface Plan {
+  workScale: number;
+  tw: number;
+  th: number;
+  margin: number;
+  sw: number;
+  sh: number;
+}
+
+function planFor(workWidth: number, template: Rect): Plan {
+  const workScale = workWidth / template.width;
+  const tw = Math.max(8, Math.round(template.width * workScale));
+  const th = Math.max(6, Math.round(template.height * workScale));
+
+  /*
+   * The search area is the template's region grown on every side.
+   *
+   * Sized from the *mouth width* rather than the template's own height, because
+   * the offset being hunted is a whole-mouth displacement and a low smile line
+   * gives a template only a few pixels tall -- padding proportionally would
+   * leave nowhere to search. This is the bug that produced "no clear teeth to
+   * match on" on a real case: the search window was the same narrow slit as the
+   * template, so the retracted photo's lower-sitting mouth simply was not
+   * inside it.
+   */
+  const margin = Math.max(10, Math.round(tw * SEARCH_MARGIN_FRACTION));
+
+  return { workScale, tw, th, margin, sw: tw + margin * 2, sh: th + margin * 2 };
+}
+
+/** Candidate values from `centre - span` to `centre + span`, inclusive. */
+function sweep(centre: number, span: number, step: number): number[] {
+  const values: number[] = [];
+  const steps = Math.round(span / step);
+  for (let i = -steps; i <= steps; i++) values.push(centre + i * step);
+  return values;
+}
+
+/** The candidate scoring highest, or null when none of them scored at all. */
+function bestOf(
+  candidates: readonly number[],
+  score: (value: number) => number,
+): number | null {
+  let best: number | null = null;
+  let bestScore = -Infinity;
+  for (const candidate of candidates) {
+    const value = score(candidate);
+    if (value > bestScore) {
+      bestScore = value;
+      best = candidate;
+    }
+  }
+  return bestScore === -Infinity ? null : best;
 }
 
 /**

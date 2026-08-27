@@ -112,6 +112,51 @@ export const DEFAULT_PARAMS: FineTuneParams = {
   archWidth: 1.0,
 };
 
+/**
+ * Rebuild `matching.transform` from its inputs (spec 9.1).
+ *
+ * The transform is derived, never edited: it is the landmark similarity, then
+ * whatever the teeth stage corrected, then whatever the clinician nudged. One
+ * place composes those three so the order cannot drift between the automatic
+ * path and the arrow keys.
+ *
+ * Returns false when there is nothing to derive from.
+ */
+function rederiveMatch(
+  get: () => AppState,
+  set: (fn: (state: AppState) => Partial<AppState>) => void,
+  patch: { nudge?: Vec2; refinement?: Matrix2D | null },
+): boolean {
+  const current = get().matching;
+  if (current.transform === null) return false;
+
+  let fitted: Matrix2D;
+  try {
+    fitted = fitSimilarity(current.pairs);
+  } catch {
+    return false;
+  }
+
+  const nudge = patch.nudge ?? current.nudge;
+  const refinement =
+    patch.refinement !== undefined ? patch.refinement : current.refinement;
+
+  const correction = compose(
+    refinement ?? IDENTITY,
+    translation(nudge.x, nudge.y),
+  );
+
+  set((state) => ({
+    matching: {
+      ...state.matching,
+      nudge,
+      refinement,
+      transform: compose(fitted, correction),
+    },
+  }));
+  return true;
+}
+
 /** Clamp each parameter into its validated range. */
 export function clampParams(params: FineTuneParams): FineTuneParams {
   const clamp = (key: keyof FineTuneParams): number => {
@@ -162,6 +207,17 @@ export interface AppState {
    */
   matching: {
     pairs: PointPair[];
+    /**
+     * What the teeth stage corrected, on top of the landmark fit.
+     *
+     * A matrix, not an offset, because it carries a scale about the mouth as
+     * well as a translation -- a retracted photograph is taken closer than a
+     * smile photograph, and a similarity fitted on the eyes and nose comes out
+     * right for the upper face and wrong at the mouth. Kept separate from
+     * `nudge` so that re-running the automatic alignment replaces the machine's
+     * correction without discarding the clinician's.
+     */
+    refinement: Matrix2D | null;
     transform: Matrix2D | null;
     /** RMS residual in pixels -- how well the pairs agree with each other. */
     error: number;
@@ -292,6 +348,8 @@ export interface AppState {
   confirmMatch(): void;
   /** Shift the fitted alignment by (dx, dy) smile-photo pixels. */
   nudgeMatch(dx: number, dy: number): void;
+  /** Record what the teeth stage corrected, and re-derive the transform. */
+  setMatchRefinement(refinement: Matrix2D | null): void;
   /** Skip alignment entirely -- valid when there is no retracted photo. */
   skipMatch(): void;
   /** Re-evaluate whether the matching step's exit condition is met. */
@@ -369,7 +427,14 @@ const RESETTERS: Record<Step, (state: AppState) => Partial<AppState>> = {
   // consistent with the initial state.
   upload: () => ({ photos: { smile: null, retracted: null }, selectedTeeth: [] }),
   matching: () => ({
-    matching: { pairs: [], transform: null, error: 0, confirmed: false, nudge: vec(0, 0) },
+    matching: {
+      pairs: [],
+      transform: null,
+      error: 0,
+      confirmed: false,
+      nudge: vec(0, 0),
+      refinement: null,
+    },
   }),
   analysis: () => ({ face: { refs: null, frame: null, error: null } }),
   design: (state) => ({
@@ -449,7 +514,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
   photos: { smile: null, retracted: null },
   selectedTeeth: [],
 
-  matching: { pairs: [], transform: null, error: 0, confirmed: false, nudge: vec(0, 0) },
+  matching: {
+    pairs: [],
+    transform: null,
+    error: 0,
+    confirmed: false,
+    nudge: vec(0, 0),
+    refinement: null,
+  },
   face: { refs: null, frame: null, error: null },
   design: {
     templateId: DEFAULT_TEMPLATE_ID,
@@ -786,36 +858,37 @@ export const useAppStore = create<AppState>()((set, get) => ({
       transform !== null && isTrustworthyAlignment(pairs, transform, error);
 
     set(() => ({
-      // New pairs are a fresh alignment; an old manual nudge belonged to the
+      // New pairs are a fresh alignment; an old correction belonged to the
       // fit it corrected and would silently skew this one.
-      matching: { pairs, transform, error, confirmed, nudge: vec(0, 0) },
+      matching: {
+        pairs,
+        transform,
+        error,
+        confirmed,
+        nudge: vec(0, 0),
+        refinement: null,
+      },
     }));
     get().invalidateAfter('matching');
     get().syncMatchGate();
   },
 
   nudgeMatch(dx, dy) {
-    const { pairs, nudge, transform } = get().matching;
-    if (transform === null) return;
-
-    let fitted: Matrix2D;
-    try {
-      fitted = fitSimilarity(pairs);
-    } catch {
-      return;
-    }
-
+    const { nudge } = get().matching;
     const next = vec(nudge.x + dx, nudge.y + dy);
-    set((state) => ({
-      matching: {
-        ...state.matching,
-        nudge: next,
-        transform: compose(fitted, translation(next.x, next.y)),
-      },
-    }));
+    if (!rederiveMatch(get, set, { nudge: next })) return;
     // The nudge moves where the retracted overlay sits; the design lives in
     // smile-photo coordinates and is untouched. Nothing is invalidated -- the
     // report and the design-step reference derive from the live transform.
+  },
+
+  setMatchRefinement(refinement) {
+    /*
+     * The machine's correction replaces any earlier machine correction and
+     * clears the hand nudge with it: a nudge was aimed at the *previous*
+     * alignment, and carrying it onto a new one would apply a correction twice.
+     */
+    rederiveMatch(get, set, { refinement, nudge: vec(0, 0) });
   },
 
   confirmMatch() {
@@ -1037,6 +1110,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (savedMatch) {
       if (savedMatch.pairs.length >= 2) {
         get().setMatchPairs(savedMatch.pairs);
+        // The teeth correction first: it is what the nudge was aimed at.
+        if (savedMatch.refinement) {
+          get().setMatchRefinement(savedMatch.refinement);
+        }
         if (savedMatch.nudge.x !== 0 || savedMatch.nudge.y !== 0) {
           get().nudgeMatch(savedMatch.nudge.x, savedMatch.nudge.y);
         }

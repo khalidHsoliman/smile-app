@@ -30,6 +30,7 @@ export function MatchingStep() {
   const setMatchPairs = useAppStore((s) => s.setMatchPairs);
   const confirmMatch = useAppStore((s) => s.confirmMatch);
   const nudgeMatch = useAppStore((s) => s.nudgeMatch);
+  const setMatchRefinement = useAppStore((s) => s.setMatchRefinement);
   const skipMatch = useAppStore((s) => s.skipMatch);
 
   const [status, setStatus] = useState<Status>('idle');
@@ -137,14 +138,28 @@ export function MatchingStep() {
 
           switch (outcome.kind) {
             case 'refined': {
-              const { dx, dy, score, verticalIsManual } = outcome.refinement;
-              nudgeMatch(dx, dy);
-              const moved = Math.hypot(dx, dy);
+              const { correction, zoom, moved, score, verticalIsManual } =
+                outcome.refinement;
+              setMatchRefinement(correction);
+
+              /*
+               * Say what was corrected, including the resize. The resize is the
+               * one a clinician cannot diagnose by eye: a mouth that is the
+               * wrong *size* looks exactly like a mouth in the wrong place
+               * until you try to drag it into position and find that no
+               * position works.
+               */
+              const resized =
+                Math.abs(zoom - 1) >= 0.01
+                  ? `, resized ${((zoom - 1) * 100).toFixed(0)}%`
+                  : '';
+              const percent = (score * 100).toFixed(0);
+
               note = verticalIsManual
-                ? `Matched the teeth sideways (${(score * 100).toFixed(0)}%), but could not find the biting edge — set the height with the nudge arrows on the Design step.`
-                : moved > 1
-                  ? `Aligned on the teeth: moved ${moved.toFixed(0)} px, biting edges matched (${(score * 100).toFixed(0)}%).`
-                  : `Teeth already aligned (${(score * 100).toFixed(0)}%).`;
+                ? `Matched the teeth sideways (${percent}%)${resized}, but could not find the biting edge — set the height with the nudge arrows on the Design step.`
+                : moved > 1 || resized
+                  ? `Aligned on the teeth: moved ${moved.toFixed(0)} px${resized}, biting edges matched (${percent}%).`
+                  : `Teeth already aligned (${percent}%).`;
               break;
             }
             case 'weak':
@@ -178,7 +193,7 @@ export function MatchingStep() {
         `${(cause as Error).message} Place matching points by hand instead.`,
       );
     }
-  }, [smile, retracted, smileSize, retractedSize, setMatchPairs]);
+  }, [smile, retracted, smileSize, retractedSize, setMatchPairs, setMatchRefinement]);
 
   useEffect(() => {
     if (!attempted.current && smile && retracted) {

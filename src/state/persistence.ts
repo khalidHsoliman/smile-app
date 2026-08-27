@@ -16,7 +16,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { FineTuneParams, PhotoKind } from './store.js';
 import type { FacialReferences } from '../domain/faceFrame.js';
 import type { PointPair } from '../domain/similarity.js';
-import type { Vec2 } from '../domain/geometry.js';
+import type { Matrix2D, Vec2 } from '../domain/geometry.js';
 import type { ToothEdits } from '../domain/toothEdits.js';
 import type { ToothPalette } from '../vision/sampleToothColor.js';
 import type { Universal } from '../domain/teeth.js';
@@ -49,13 +49,16 @@ export interface StoredCase {
   selectedTeeth: Universal[];
   refs: FacialReferences | null;
   /**
-   * The photo alignment's *inputs* -- pairs and manual nudge; the transform is
-   * re-derived on restore (spec 9.1). Optional so cases saved before matching
-   * existed still load; they re-align with one click.
+   * The photo alignment's *inputs* -- the pairs, what the teeth stage
+   * corrected, and the manual nudge; the transform is re-derived on restore
+   * (spec 9.1). Optional so cases saved before matching existed still load;
+   * they re-align with one click.
    */
   matching?: {
     pairs: PointPair[];
     nudge: Vec2;
+    /** Optional: absent in cases saved before the teeth stage could resize. */
+    refinement?: Matrix2D | null;
     confirmed: boolean;
   };
   design: {

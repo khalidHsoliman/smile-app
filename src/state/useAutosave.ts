@@ -36,6 +36,7 @@ function fingerprint(s: ReturnType<typeof useAppStore.getState>): string {
     s.face.refs,
     s.matching.pairs,
     s.matching.nudge,
+    s.matching.refinement,
     s.matching.confirmed,
     s.design.templateId,
     s.design.params,
@@ -121,6 +122,7 @@ export function useAutosave() {
           matching: {
             pairs: s.matching.pairs,
             nudge: s.matching.nudge,
+            refinement: s.matching.refinement,
             confirmed: s.matching.confirmed,
           },
           design: {
