@@ -27,7 +27,24 @@
  * overlay cannot be made to line up by dragging, at any position, because the
  * teeth are simply the wrong size.
  *
- * So the teeth get the last word on how big they are, not just on where.
+ * **And on how they are tilted.** The landmarks the coarse similarity is fitted
+ * on are all in the upper face -- eye corners, the nose midline chain, the alae
+ * -- and most of them lie almost on the midline itself, so the roll comes from
+ * only a handful of off-axis points. Their centroid sits between the eyes,
+ * well over a hundred pixels above the mouth, and that distance is a lever: a
+ * roll error too small to see at the eyes arrives at the teeth multiplied by
+ * it. Half a degree tilts the anterior incisal edge by 2.6 px across a 300 px
+ * mouth and leaves 0.92 px that no scale or shift can take out; two degrees
+ * leaves 3.59 px.
+ *
+ * Worth contrasting with the one that was *not* worth correcting. A chin tilt
+ * between the shots foreshortens the mouth vertically, which looks like the
+ * same kind of problem and is not: the anterior incisal edges are nearly
+ * collinear, so a vertical scale barely moves them and a uniform scale with a
+ * vertical shift absorbs almost all of it. Even a 12% vertical error leaves
+ * 0.62 px. Rotation earns its axis; anisotropy does not.
+ *
+ * So the teeth get the last word on size and tilt, not just on position.
  */
 
 import { matchTemplate } from '../domain/correlate.js';
@@ -53,6 +70,8 @@ export interface Refinement {
   correction: Matrix2D;
   /** The scale it applied to the mouth region. 1 means the coarse fit had it. */
   zoom: number;
+  /** The roll it corrected, in degrees. 0 means the coarse fit had it. */
+  rotation: number;
   /** How far the mouth moved, in smile-photo pixels. */
   moved: number;
   /** Correlation at the chosen shift, -1 to 1. */
@@ -138,6 +157,19 @@ const ZOOM_COARSE_STEP = 0.05;
 const ZOOM_FINE_STEP = 0.0125;
 
 /**
+ * How far the mouth's roll may be corrected, and how finely, in degrees.
+ *
+ * Five degrees is far more than the error being corrected -- this is the
+ * residual left after a landmark fit, not the head tilt itself -- but the sweep
+ * is cheap and a bound that cannot be reached is not a bound. The fine step of
+ * a third of a degree leaves under 2 px of tilt across a wide mouth, which is
+ * past what the rest of the pipeline resolves.
+ */
+const ANGLE_RANGE = 5;
+const ANGLE_COARSE_STEP = 1.25;
+const ANGLE_FINE_STEP = 0.3125;
+
+/**
  * Minimum correlation between the two edge profiles to trust the vertical.
  *
  * Separate from `ACCEPT_SCORE`, and separately reported: the sideways match and
@@ -205,7 +237,7 @@ export function refineOnTeeth(
    * re-warping per position, and the residual left after the zoom is a
    * translation.
    */
-  const searchMap = (plan: Plan, zoom: number) =>
+  const searchMap = (plan: Plan, zoom: number, degrees: number) =>
     enamelMap(
       retractedImage,
       plan.sw,
@@ -215,6 +247,7 @@ export function refineOnTeeth(
         ctx.scale(plan.workScale, plan.workScale);
         ctx.translate(-template.x, -template.y);
         ctx.translate(centre.x, centre.y);
+        ctx.rotate((degrees * Math.PI) / 180);
         ctx.scale(zoom, zoom);
         ctx.translate(-centre.x, -centre.y);
         ctx.transform(coarse.a, coarse.b, coarse.c, coarse.d, coarse.e, coarse.f);
@@ -240,8 +273,8 @@ export function refineOnTeeth(
    */
   if (!hasEnamel(scanFixed)) return { kind: 'no-teeth' };
 
-  const scoreZoom = (zoom: number): number => {
-    const map = searchMap(scan, zoom);
+  const scoreAt = (zoom: number, degrees: number): number => {
+    const map = searchMap(scan, zoom, degrees);
     if (!map || !hasEnamel(map)) return -Infinity;
     return matchTemplate(
       scanFixed,
@@ -254,12 +287,28 @@ export function refineOnTeeth(
     ).score;
   };
 
-  const coarseZoom = bestOf(sweep(1, ZOOM_RANGE, ZOOM_COARSE_STEP), scoreZoom);
-  if (coarseZoom === null) return { kind: 'no-teeth' };
+  /*
+   * Scale and roll are searched by alternation rather than as a grid.
+   *
+   * A full two-dimensional sweep of both at this resolution would be nine times
+   * the passes for an answer barely different: over the small residuals being
+   * corrected the two are close to independent, since scaling a mouth about its
+   * own centre and rotating it about the same point disturb different things
+   * about the correlation. Alternating coarse and fine passes over each -- four
+   * sweeps rather than a grid -- converges on the same place for a fraction of
+   * the work.
+   */
+  let zoom = bestOf(sweep(1, ZOOM_RANGE, ZOOM_COARSE_STEP), (z) => scoreAt(z, 0));
+  if (zoom === null) return { kind: 'no-teeth' };
 
-  const zoom =
-    bestOf(sweep(coarseZoom, ZOOM_COARSE_STEP, ZOOM_FINE_STEP), scoreZoom) ??
-    coarseZoom;
+  let degrees =
+    bestOf(sweep(0, ANGLE_RANGE, ANGLE_COARSE_STEP), (d) => scoreAt(zoom!, d)) ?? 0;
+  zoom =
+    bestOf(sweep(zoom, ZOOM_COARSE_STEP, ZOOM_FINE_STEP), (z) => scoreAt(z, degrees)) ??
+    zoom;
+  degrees =
+    bestOf(sweep(degrees, ANGLE_COARSE_STEP, ANGLE_FINE_STEP), (d) => scoreAt(zoom!, d)) ??
+    degrees;
 
   // ------------------------------------------------------------- the position
   const work = planFor(WORK_WIDTH, template);
@@ -278,18 +327,27 @@ export function refineOnTeeth(
    * the winner and its two neighbours at full resolution costs three passes and
    * settles which of them it actually is.
    */
-  let best: { zoom: number; map: Float32Array; found: ReturnType<typeof matchTemplate> } | null = null;
+  let best: {
+    zoom: number;
+    degrees: number;
+    map: Float32Array;
+    found: ReturnType<typeof matchTemplate>;
+  } | null = null;
 
-  for (const candidate of [zoom - ZOOM_FINE_STEP, zoom, zoom + ZOOM_FINE_STEP]) {
-    const map = searchMap(work, candidate);
-    if (!map || !hasEnamel(map)) continue;
-    const found = matchTemplate(fixed, work.tw, work.th, map, work.sw, work.sh);
-    if (!best || found.score > best.found.score) best = { zoom: candidate, map, found };
+  for (const z of [zoom - ZOOM_FINE_STEP, zoom, zoom + ZOOM_FINE_STEP]) {
+    for (const d of [degrees - ANGLE_FINE_STEP, degrees, degrees + ANGLE_FINE_STEP]) {
+      const map = searchMap(work, z, d);
+      if (!map || !hasEnamel(map)) continue;
+      const found = matchTemplate(fixed, work.tw, work.th, map, work.sw, work.sh);
+      if (!best || found.score > best.found.score) {
+        best = { zoom: z, degrees: d, map, found };
+      }
+    }
   }
 
   if (!best) return { kind: 'no-teeth' };
 
-  const { zoom: finalZoom, map: search, found } = best;
+  const { zoom: finalZoom, degrees: finalDegrees, map: search, found } = best;
   if (found.score < ACCEPT_SCORE) return { kind: 'weak', score: found.score };
 
   // Sideways: the interdental gaps are effectively a barcode and the template
@@ -346,24 +404,30 @@ export function refineOnTeeth(
   }
 
   /*
-   * Scale about the mouth's centre, then translate. In that order: the shift
-   * was measured on an image that had already been zoomed, so it is a
-   * correction to the zoomed result and not to the coarse one.
+   * Scale and rotate about the mouth's centre, then translate. In that order:
+   * the shift was measured on an image that had already been scaled and turned,
+   * so it corrects that result rather than the coarse one. About the mouth
+   * rather than the image origin, so all three stay independent and each
+   * measures one thing.
    */
-  const zoomAboutMouth: Matrix2D = {
-    a: finalZoom,
-    b: 0,
-    c: 0,
-    d: finalZoom,
-    e: centre.x * (1 - finalZoom),
-    f: centre.y * (1 - finalZoom),
+  const radians = (finalDegrees * Math.PI) / 180;
+  const cos = Math.cos(radians) * finalZoom;
+  const sin = Math.sin(radians) * finalZoom;
+  const aboutMouth: Matrix2D = {
+    a: cos,
+    b: sin,
+    c: -sin,
+    d: cos,
+    e: centre.x - (cos * centre.x - sin * centre.y),
+    f: centre.y - (sin * centre.x + cos * centre.y),
   };
 
   return {
     kind: 'refined',
     refinement: {
-      correction: compose(zoomAboutMouth, translation(dx, dy)),
+      correction: compose(aboutMouth, translation(dx, dy)),
       zoom: finalZoom,
+      rotation: finalDegrees,
       moved: Math.hypot(dx, dy),
       score: found.score,
       verticalIsManual,

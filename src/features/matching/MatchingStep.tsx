@@ -138,7 +138,7 @@ export function MatchingStep() {
 
           switch (outcome.kind) {
             case 'refined': {
-              const { correction, zoom, moved, score, verticalIsManual } =
+              const { correction, zoom, rotation, moved, score, verticalIsManual } =
                 outcome.refinement;
               setMatchRefinement(correction);
 
@@ -153,12 +153,23 @@ export function MatchingStep() {
                 Math.abs(zoom - 1) >= 0.01
                   ? `, resized ${((zoom - 1) * 100).toFixed(0)}%`
                   : '';
+              /*
+               * The roll matters out of proportion to its size. The landmarks
+               * the coarse fit uses sit far above the mouth, so a fraction of a
+               * degree there arrives at the teeth as several pixels of tilt --
+               * and a tilt is the one error that looks like bad alignment while
+               * being impossible to drag out.
+               */
+              const turned =
+                Math.abs(rotation) >= 0.3
+                  ? `, turned ${rotation.toFixed(1)}°`
+                  : '';
               const percent = (score * 100).toFixed(0);
 
               note = verticalIsManual
-                ? `Matched the teeth sideways (${percent}%)${resized}, but could not find the biting edge — set the height with the nudge arrows on the Design step.`
-                : moved > 1 || resized
-                  ? `Aligned on the teeth: moved ${moved.toFixed(0)} px${resized}, biting edges matched (${percent}%).`
+                ? `Matched the teeth sideways (${percent}%)${resized}${turned}, but could not find the biting edge — set the height with the nudge arrows on the Design step.`
+                : moved > 1 || resized || turned
+                  ? `Aligned on the teeth: moved ${moved.toFixed(0)} px${resized}${turned}, biting edges matched (${percent}%).`
                   : `Teeth already aligned (${percent}%).`;
               break;
             }
