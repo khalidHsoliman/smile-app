@@ -79,7 +79,5 @@ const TOOTH_STYLES = `
 .teeth__grain{mix-blend-mode:multiply}
 .teeth{isolation:isolate}
 .teeth__blend{mix-blend-mode:soft-light}
-.tooth__groove{fill:none;stroke:#8a7c66;stroke-opacity:0.26;stroke-width:0.03;stroke-linecap:round}
-.tooth__ridge{fill:none;stroke:#fff;stroke-opacity:0.28;stroke-width:0.055;stroke-linecap:round}
 .tooth__edge{fill:none;stroke:#9c8f79;stroke-width:0.9;stroke-opacity:0.5;vector-effect:non-scaling-stroke}
 `.trim();

@@ -13,7 +13,7 @@
 
 import { vec, type Vec2 } from '../geometry.js';
 import { isPatientRight, isUpper, type Universal } from '../teeth.js';
-import type { Template, ToothFeature, ToothTemplate } from './types.js';
+import type { Template, ToothTemplate } from './types.js';
 
 /**
  * The tooth types we distinguish. Molars are included so a wide selection still
@@ -108,23 +108,6 @@ interface TypeProportions {
    * dead-straight edge reads as a worn or artificial tooth.
    */
   incisalBow: number;
-  /**
-   * Developmental grooves on the labial face, as signed fractions of the
-   * half-width from the tooth's centre line. Positive is mesial.
-   *
-   * A central incisor forms from three lobes and the two grooves between them
-   * survive on the finished crown; they are what stops the labial face reading
-   * as one flat panel. Empty for a tooth that should be smooth.
-   */
-  grooves: number[];
-  /**
-   * Raised ridges on the labial face, in the same units.
-   *
-   * The canine's is the one that matters: a pronounced ridge running from the
-   * cusp up the middle of the face, and the single strongest cue that the tooth
-   * is a canine rather than a narrow incisor.
-   */
-  ridges: number[];
 }
 
 /*
@@ -148,9 +131,6 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     distalRounding: 2.6,
     bulgeHeight: 0.36,
     incisalBow: 0.035,
-    // Three lobes, two grooves between them. The classic central incisor face.
-    grooves: [0.3, -0.3],
-    ridges: [],
   },
   // 0.62-0.70 in the spec; 0.66 is mid-range and reads naturally.
   // Gum line: 1.21 - 0.09 = 1.12, about 0.13 more incisal than the central's.
@@ -168,9 +148,6 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     distalRounding: 2.2,
     bulgeHeight: 0.38,
     incisalBow: 0.05,
-    // The same construction, narrower and fainter than the central's.
-    grooves: [0.28, -0.28],
-    ridges: [],
   },
   // 0.55-0.62 in the spec. Narrow but long -- its gum line returns to the
   // central's level (1.26 - 0.01 = 1.25) and its tip nearly does too.
@@ -206,15 +183,6 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     // A softly convex tip rather than a dead flat one. Every other rounded
     // tooth bows; the canine had none only because it used to end in a point.
     incisalBow: 0.03,
-    /*
-     * The labial ridge, and the two depressions flanking it.
-     *
-     * This is what a canine has that no incisor does, and now that the tooth
-     * no longer comes to a point it is doing most of the work of saying which
-     * tooth this is. Set slightly mesial of centre, following the cusp.
-     */
-    grooves: [0.46, -0.42],
-    ridges: [0.1],
   },
   premolar: {
     width: 0.52,
@@ -227,9 +195,6 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     distalRounding: 1.4,
     bulgeHeight: 0.4,
     incisalBow: 0.02,
-    // The buccal cusp ridge, running down the centre of the face.
-    grooves: [],
-    ridges: [0.0],
   },
   molar: {
     width: 0.6,
@@ -242,10 +207,6 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     distalRounding: 1.2,
     bulgeHeight: 0.42,
     incisalBow: 0.015,
-    // Nothing: a molar is barely visible in a frontal view and detail on one
-    // is detail nobody sees.
-    grooves: [],
-    ridges: [],
   },
 };
 
@@ -267,16 +228,10 @@ const HOLLYWOOD: Record<ToothType, TypeProportions> = {
    * line angle at the incisal corner; it is what stops the tooth reading as a
    * printed rectangle.
    */
-  /*
-   * And smooth. A layered veneer is polished to a single uninterrupted face --
-   * the developmental grooves belong to a tooth that grew, not to one that was
-   * made. Dropping them is the same choice as the squarer corners: it is what
-   * the look actually is, not an omission.
-   */
-  central: { ...NATURAL.central, length: 1.14, incisalRounding: 0.15, cervicalTaper: 0.07, distalRounding: 1.35, incisalBow: 0.018, grooves: [] },
-  lateral: { ...NATURAL.lateral, width: 0.72, length: 1.12, incisalOffset: 0.05, incisalRounding: 0.17, cervicalTaper: 0.08, distalRounding: 1.3, incisalBow: 0.02, grooves: [] },
+  central: { ...NATURAL.central, length: 1.14, incisalRounding: 0.15, cervicalTaper: 0.07, distalRounding: 1.35, incisalBow: 0.018 },
+  lateral: { ...NATURAL.lateral, width: 0.72, length: 1.12, incisalOffset: 0.05, incisalRounding: 0.17, cervicalTaper: 0.08, distalRounding: 1.3, incisalBow: 0.02 },
   // Blunted rather than pointed -- below the cusp threshold on purpose.
-  canine: { ...NATURAL.canine, width: 0.64, length: 1.15, incisalOffset: 0.0, incisalRounding: 0.26, cervicalTaper: 0.07, distalRounding: 1.25, incisalBow: 0.014, grooves: [] },
+  canine: { ...NATURAL.canine, width: 0.64, length: 1.15, incisalOffset: 0.0, incisalRounding: 0.26, cervicalTaper: 0.07, distalRounding: 1.25, incisalBow: 0.014 },
   premolar: { ...NATURAL.premolar, width: 0.58, length: 1.08, incisalOffset: 0.09, incisalRounding: 0.18, distalRounding: 1.15 },
   molar: { ...NATURAL.molar, width: 0.62, length: 1.05, incisalOffset: 0.15, incisalRounding: 0.2, distalRounding: 1.1 },
 };
@@ -300,7 +255,6 @@ const HOLLYWOOD: Record<ToothType, TypeProportions> = {
  */
 function buildOutline(p: TypeProportions, side: -1 | 1): {
   outline: string;
-  features: ToothFeature[];
   incisalEdge: Vec2[];
   gingivalZenith: Vec2;
 } {
@@ -400,58 +354,7 @@ function buildOutline(p: TypeProportions, side: -1 | 1): {
 
   path.push('Z');
 
-  return {
-    outline: path.join(' '),
-    features: labialFeatures(p, halfWidth, cervicalHalf, length, mesialSign),
-    incisalEdge,
-    gingivalZenith,
-  };
-}
-
-/**
- * The markings on the labial face.
- *
- * Each runs from the incisal third up toward the cervical third and converges
- * slightly as it climbs, because the crown itself tapers toward the gum -- a
- * groove that stayed at a constant fraction of the *widest* part would run off
- * the tooth near the gum line. They stop well short of both ends: a groove that
- * reached the incisal edge would read as a crack, and one that reached the gum
- * line would read as a margin.
- *
- * Bowed outward very slightly at the middle, following the crown's own bulge.
- * A dead straight line on a curved face is the thing that gives away a drawing.
- */
-function labialFeatures(
-  p: TypeProportions,
-  halfWidth: number,
-  cervicalHalf: number,
-  length: number,
-  mesialSign: -1 | 1,
-): ToothFeature[] {
-  const mark = (fraction: number, from: number, to: number): string => {
-    const x0 = mesialSign * fraction * halfWidth;
-    const x1 = mesialSign * fraction * cervicalHalf * 0.94;
-    const y0 = length * from;
-    const y1 = length * to;
-    // Control point at the midpoint, pushed a little further out than the
-    // straight line would run.
-    const cx = ((x0 + x1) / 2) * 1.08;
-    const cy = (y0 + y1) / 2;
-    return `M ${round(x0)} ${round(y0)} Q ${round(cx)} ${round(cy)} ${round(x1)} ${round(y1)}`;
-  };
-
-  return [
-    ...p.grooves.map((fraction): ToothFeature => ({
-      kind: 'groove',
-      path: mark(fraction, 0.14, 0.64),
-    })),
-    // Ridges run longer than grooves: a canine's reaches almost from the cusp
-    // to the cervical third, which is what makes it read as a ridge at all.
-    ...p.ridges.map((fraction): ToothFeature => ({
-      kind: 'ridge',
-      path: mark(fraction, 0.08, 0.72),
-    })),
-  ];
+  return { outline: path.join(' '), incisalEdge, gingivalZenith };
 }
 
 const round = (n: number): number => Math.round(n * 10000) / 10000;
@@ -474,12 +377,11 @@ function buildTooth(
    * both are corrected together against the one shared predicate.
    */
   const side: -1 | 1 = isPatientRight(universal) ? -1 : 1;
-  const { outline, features, incisalEdge, gingivalZenith } = buildOutline(p, side);
+  const { outline, incisalEdge, gingivalZenith } = buildOutline(p, side);
 
   return {
     universal,
     outline,
-    features,
     width: p.width,
     length: p.length,
     gingivalZenith,

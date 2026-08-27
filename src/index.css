@@ -319,31 +319,6 @@ body { margin: 0; }
   pointer-events: none;
 }
 
-/*
- * Labial surface markings (see `labialFeatures`). A groove is a depression and
- * takes a shadow; a ridge is raised and takes a highlight.
- *
- * Stroke widths are in the tooth's own local frame, where a central incisor is
- * 1.0 wide -- so they are fractions of a crown and scale with it, and must NOT
- * take `vector-effect: non-scaling-stroke` the way the outline does. A marking
- * that stayed the same pixel width on every tooth would read as ink.
- */
-.tooth__groove {
-  fill: none;
-  stroke: #8a7c66;
-  stroke-opacity: 0.26;
-  stroke-width: 0.03;
-  stroke-linecap: round;
-}
-
-.tooth__ridge {
-  fill: none;
-  stroke: #ffffff;
-  stroke-opacity: 0.28;
-  stroke-width: 0.055;
-  stroke-linecap: round;
-}
-
 .tooth__edge {
   fill: none;
   stroke: #9c8f79;
