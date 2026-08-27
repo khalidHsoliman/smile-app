@@ -151,7 +151,7 @@ const INTER_ARCH_GAP = 0.04;
  * at -5 it reverses into the flat-or-reverse arc that spec 6.2 calls the most
  * common aesthetic failure. The unit is face-frame y per unit x squared.
  */
-const CURVE_SCALE = 0.06;
+export const CURVE_SCALE = 0.06;
 
 /**
  * Where RED stops applying.
