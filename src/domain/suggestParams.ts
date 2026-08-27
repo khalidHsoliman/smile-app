@@ -98,23 +98,25 @@ const DROP_OF_APERTURE = 0.62;
 /**
  * How much of the lower lip's curvature `smileCurve` is asked to supply.
  *
- * Well under the whole of it, for two reasons.
+ * Nearly all of it. A *consonant* smile runs the incisal curve parallel to the
+ * lower lip, and that is the aesthetic target; a tenth is held back only so the
+ * design does not literally meet the lip at the commissures.
  *
- * Part of the arc is already built into the template: the gull-wing raises the
- * lateral and returns the canine to near the central's level before this
- * parameter is applied at all, so matching the lip's curvature outright would
- * count that contribution twice.
+ * It was half, on the reasoning that the template's gull-wing already lifts the
+ * corners and matching the lip outright would count that twice. Checking the
+ * template rather than assuming: the gull-wing raises the *lateral* by 0.09 of
+ * a crown width and returns the canine to 0.01 -- which is to say, to the
+ * central's own level. It lifts the canine by nothing at all.
  *
- * And parallel is the ceiling rather than the aim. A *consonant* smile runs the
- * incisal curve alongside the lower lip, but designers routinely keep it a
- * little flatter so a sliver of shadow stays at the corners; an edge that
- * tracks the lip exactly meets it at the commissures and reads as crowded.
- *
- * Half is what puts a typical lip at a canine tip 0.7-0.8mm above the central
- * edge -- the middle of the range spec 6.2 asks for -- while leaving a flat lip
- * near the published default and a deep one at the top of the derived range.
+ * So the argument was sound everywhere except at the one tooth it mattered
+ * for. The canine sits furthest out, where the lower lip has risen most, and it
+ * had only half the lift it needed: measured on a synthetic smile it ends up
+ * the tightest tooth in the arch, 1.87mm from the lip against the central's
+ * 2.50mm, and on a real photograph it crossed the lip and was clipped. At 0.9
+ * it clears by 2.47mm while the central barely moves -- which is the shape of
+ * correction wanted, since the midline was never the problem.
  */
-const LIP_CONSONANCE = 0.5;
+const LIP_CONSONANCE = 0.9;
 
 /**
  * Bounds on the *derived* smile curve, tighter than the slider's own -5..+5.
@@ -124,8 +126,14 @@ const LIP_CONSONANCE = 0.5;
  * produced -5 would open the design step on the failure mode spec 6.2 calls the
  * most common aesthetic error, with nothing on screen to say it was guessed.
  * Inside these bounds a poor measurement is merely unremarkable.
+ *
+ * The ceiling was 3, chosen as the value that lifts a canine tip about 0.8mm
+ * above the central edge -- the middle of the range spec 6.2 asks for. It was
+ * measured at scale 1.0, and at the smaller scales the aperture actually
+ * produces the same setting lifts the canine less, because the lift goes as the
+ * square of the distance from the midline. A real lip wanted 3.46 and got 3.
  */
-const CURVE_BOUNDS = { min: 0, max: 3 } as const;
+const CURVE_BOUNDS = { min: 0, max: 4.5 } as const;
 
 export interface SuggestedParams {
   scale: number;
