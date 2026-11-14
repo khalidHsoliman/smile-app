@@ -1,4 +1,5 @@
 import { StepNav } from './features/StepNav.js';
+import { CaseFileButtons } from './features/CaseFileButtons.js';
 import { UploadStep } from './features/upload/UploadStep.js';
 import { MatchingStep } from './features/matching/MatchingStep.js';
 import { AnalysisStep } from './features/analysis/AnalysisStep.js';
@@ -24,9 +25,12 @@ export function App() {
         <StepNav />
         <div className="app__status">
           <SaveIndicator state={saveState} />
+          {/* Not until the last case has been restored: saving earlier would
+              save an empty case, opening earlier would race the restore. */}
+          <CaseFileButtons disabled={!restored} />
           <button
             type="button"
-            className="app__new"
+            className="app__action"
             onClick={() => {
               if (window.confirm('Discard this case and start a new one?')) {
                 clearCase();

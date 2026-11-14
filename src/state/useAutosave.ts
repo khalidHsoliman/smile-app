@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from './store.js';
-import { loadPhotoBlob } from './photoBlobs.js';
+import { buildCaseContent } from './caseContent.js';
 import {
   CURRENT_CASE,
   isPersistenceAvailable,
   loadCase,
   saveCase,
-  type StoredPhoto,
 } from './persistence.js';
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'failed' | 'unavailable';
@@ -102,42 +101,8 @@ export function useAutosave() {
       setState('saving');
 
       try {
-        const s = useAppStore.getState();
-
-        const photos: Partial<Record<'smile' | 'retracted', StoredPhoto>> = {};
-        for (const kind of ['smile', 'retracted'] as const) {
-          const photo = s.photos[kind];
-          if (!photo) continue;
-          const blob = await loadPhotoBlob(photo.url);
-          if (blob) {
-            photos[kind] = { blob, width: photo.width, height: photo.height };
-          }
-        }
-
-        const ok = await saveCase({
-          id: CURRENT_CASE,
-          photos,
-          selectedTeeth: s.selectedTeeth,
-          refs: s.face.refs,
-          matching: {
-            pairs: s.matching.pairs,
-            nudge: s.matching.nudge,
-            refinement: s.matching.refinement,
-            confirmed: s.matching.confirmed,
-          },
-          design: {
-            templateId: s.design.templateId,
-            params: s.design.params,
-            palette: s.design.palette,
-            paletteSampled: s.design.paletteSampled,
-            edits: s.design.edits,
-            teethOpacity: s.design.teethOpacity,
-            lipMask: s.design.lipMask,
-            photoBlend: s.design.photoBlend,
-            mirrorMode: s.design.mirrorMode,
-          },
-          report: s.report,
-        });
+        const { content } = await buildCaseContent(useAppStore.getState());
+        const ok = await saveCase({ id: CURRENT_CASE, ...content });
 
         setState(ok ? 'saved' : 'failed');
       } catch {

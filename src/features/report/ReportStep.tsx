@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '../../state/store.js';
 import { toFDI } from '../../domain/teeth.js';
 import { downloadBlob } from '../../export/snapshot.js';
+import { reportImageFileName } from '../../export/fileNames.js';
 import { useSnapshots, type SnapshotKind } from './useSnapshots.js';
 
 /**
@@ -47,7 +48,7 @@ export function ReportStep() {
 
   const save = (kind: SnapshotKind, label: string) => {
     const blob = snapshots.blobs[kind];
-    if (blob) downloadBlob(blob, `${slug(patientName || 'patient')}-${label}.png`);
+    if (blob) downloadBlob(blob, reportImageFileName(patientName, label));
   };
 
   return (
@@ -204,9 +205,3 @@ function Pair({ title, before, after, busy, onSaveBefore, onSaveAfter }: PairPro
     </section>
   );
 }
-
-const slug = (s: string): string =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '') || 'patient';

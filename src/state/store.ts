@@ -1071,6 +1071,18 @@ export const useAppStore = create<AppState>()((set, get) => ({
   canRedo: () => canRedo(get().history),
 
   restoreCase(saved) {
+    /*
+     * Start from nothing. Restore used to run only at start-up, on an empty
+     * store; opening a case file runs it over a live case. Everything below
+     * only *adds* what the saved case has, so anything it lacks would otherwise
+     * survive from the previous patient -- most dangerously the alignment: a
+     * file with no saved pairs would inherit the old case's confirmed
+     * transform. `clearCase` resets the whole case; the view, which it leaves
+     * alone, is reset here too.
+     */
+    get().clearCase();
+    set({ view: { transform: IDENTITY } });
+
     // Photos come back as Blobs; the object URLs are recreated here because a
     // persisted URL would be a dead reference (see `persistence.ts`).
     const photos: AppState['photos'] = { smile: null, retracted: null };
@@ -1161,11 +1173,15 @@ export const useAppStore = create<AppState>()((set, get) => ({
       const photo = get().photos[kind];
       if (photo) URL.revokeObjectURL(photo.url);
     }
-    set({
+    set((state) => ({
       step: 'upload',
       unlockedSteps: new Set<Step>(['upload']),
       photos: { smile: null, retracted: null },
       selectedTeeth: [],
+      // The alignment too: left behind, the previous patient's pairs and
+      // confirmed transform stayed in memory and in the autosave until the
+      // next photo upload happened to reset them.
+      ...RESETTERS.matching(state),
       face: { refs: null, frame: null, error: null },
       design: {
         templateId: DEFAULT_TEMPLATE_ID,
@@ -1186,7 +1202,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         params: { ...DEFAULT_PARAMS },
         edits: {},
       }),
-    });
+    }));
   },
 
   /**
