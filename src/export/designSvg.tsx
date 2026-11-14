@@ -21,7 +21,7 @@ export interface DesignSvgOptions {
 }
 
 /**
- * Build the standalone SVG for a snapshot (spec 8.3).
+ * Build the standalone SVG for a snapshot.
  *
  * The tooth layer is rendered through the very same `ToothLayer` component the
  * screen uses, so an exported image cannot drift from what the clinician

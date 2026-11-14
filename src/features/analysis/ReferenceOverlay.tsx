@@ -31,15 +31,15 @@ const POINT_LABELS: Record<PointKey, string> = {
 type Drag = { kind: 'point'; key: PointKey } | { kind: 'lip'; index: number } | null;
 
 /**
- * The reference lines and their drag handles (spec 5.1, 5.3).
+ * The reference lines and their drag handles.
  *
  * Handle size is derived from the image rather than fixed in pixels: the SVG
  * scales to fit the stage, so a constant radius would be invisible on a 4000px
  * photo and enormous on a small one.
  *
  * Dragging updates the references on every pointer move, not on release. The
- * spec is explicit that the arch should follow the handle live -- that
- * immediate feedback is what makes the tool feel intelligent (spec 5.4).
+ * arch should follow the handle live -- that
+ * immediate feedback is what makes the tool feel intelligent.
  */
 export function ReferenceOverlay({ refs, size, onChange }: ReferenceOverlayProps) {
   const groupRef = useRef<SVGGElement>(null);

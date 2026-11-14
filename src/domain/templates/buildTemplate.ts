@@ -1,14 +1,14 @@
 /**
- * Generating tooth outlines from the clinical proportions (spec 6.2).
+ * Generating tooth outlines from the clinical proportions.
  *
  * The outlines are *generated* from a small set of per-tooth-type parameters
  * rather than hand-drawn 32 times. Hand-drawing invites inconsistency between
  * contralateral partners and makes the aesthetic ratios invisible in the
- * source; here the proportions the spec calls out are named constants that a
+ * source; here the clinical proportions are named constants that a
  * clinician could review, and mirroring is exact by construction.
  *
- * "Ugly is fine; correct is not optional" (spec 14 step 6) -- so this
- * prioritizes the proportions being right over the silhouettes being beautiful.
+ * This prioritizes the proportions being right over the silhouettes being
+ * beautiful.
  */
 
 import { vec, type Vec2 } from '../geometry.js';
@@ -54,11 +54,11 @@ export function toothType(universal: Universal): ToothType {
 }
 
 /**
- * The proportions from spec 6.2, as reviewable constants.
+ * The clinical proportions, as reviewable constants.
  *
  * `width` and `length` are both relative to the central incisor's width at 1.0.
- * Their quotient is the width:length ratio the spec calls the single most
- * important one (0.75-0.85); the central sits mid-range at 0.80 and the
+ * Their quotient is the width:length ratio, the single most important one
+ * (0.75-0.85); the central sits mid-range at 0.80 and the
  * fine-tune `ratio` slider moves it from there.
  *
  * `incisalOffset` is how far above the central's edge this tooth's edge sits,
@@ -73,7 +73,7 @@ interface TypeProportions {
    *
    * Deriving length from width would be wrong: a canine is narrow *and* long,
    * so `width / ratio` makes it far too short and drags its gingival zenith
-   * down to the lateral's level. Spec 6.2 requires central and canine zeniths
+   * down to the lateral's level. The central and canine zeniths should be
    * roughly level with the lateral's sitting ~0.5-1mm more incisal, and that
    * only holds if length is its own parameter.
    */
@@ -119,7 +119,7 @@ interface TypeProportions {
 
 /*
  * Lengths are chosen so that the *gingival* line (length - incisalOffset) lands
- * where spec 6.2 wants it: central and canine roughly level, the lateral about
+ * where it should be: central and canine roughly level, the lateral about
  * 0.06 units more incisal. With the central at width 1.0 and a 0.80 width:length
  * ratio its crown is 1.25 long, which fixes the scale for the rest.
  */
@@ -127,7 +127,7 @@ const NATURAL: Record<ToothType, TypeProportions> = {
   // The reference tooth. Everything else is expressed against it.
   central: {
     width: 1.0,
-    length: 1.25, // width:length = 0.80, mid of the spec's 0.75-0.85
+    length: 1.25, // width:length = 0.80, mid of the usual 0.75-0.85
     incisalOffset: 0,
     zenithOffset: 0.06,
     zenithDrop: 0.04,
@@ -139,10 +139,10 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     bulgeHeight: 0.36,
     incisalBow: 0.035,
   },
-  // 0.62-0.70 in the spec; 0.66 is mid-range and reads naturally.
+  // Usually 0.62-0.70; 0.66 is mid-range and reads naturally.
   // Gum line: 1.21 - 0.09 = 1.12, about 0.13 more incisal than the central's.
-  // A subtler step than this leaves the gum line reading as flat, which spec
-  // 6.2 calls out as the artificial-looking failure mode.
+  // A subtler step than this leaves the gum line reading as flat, the
+  // artificial-looking failure mode.
   lateral: {
     width: 0.66,
     length: 1.21,
@@ -156,7 +156,7 @@ const NATURAL: Record<ToothType, TypeProportions> = {
     bulgeHeight: 0.38,
     incisalBow: 0.05,
   },
-  // 0.55-0.62 in the spec. Narrow but long -- its gum line returns to the
+  // Usually 0.55-0.62. Narrow but long -- its gum line returns to the
   // central's level (1.26 - 0.01 = 1.25) and its tip nearly does too.
   canine: {
     width: 0.58,

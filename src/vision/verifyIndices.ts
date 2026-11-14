@@ -1,8 +1,8 @@
 /**
- * A sanity check on the landmark indices (spec 5.3).
+ * A sanity check on the landmark indices.
  *
- * The spec warns that MediaPipe index maps have shifted between versions and
- * that ours must be verified against real model output rather than trusted.
+ * MediaPipe index maps have shifted between versions, so ours must be
+ * verified against real model output rather than trusted.
  * Verifying them needs a real face, so instead of a static assertion this runs
  * against the first photo the user actually loads and reports anything that
  * contradicts basic facial anatomy.

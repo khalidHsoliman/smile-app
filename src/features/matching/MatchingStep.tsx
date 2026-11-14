@@ -14,12 +14,12 @@ import { ZoomControls } from '../view/ZoomControls.js';
 type Status = 'idle' | 'detecting' | 'auto' | 'failed';
 
 /**
- * Photo matching (spec 15).
+ * Photo matching.
  *
  * Aligns the retracted photograph onto the smile photograph so the design can
  * be shown on both and the report carries a genuine second before/after pair.
  *
- * The spec's shape: automatic alignment first, then manual correction by
+ * The shape: automatic alignment first, then manual correction by
  * placing corresponding points, then a fine-tuning overlay at partial opacity.
  * Auto-detection usually settles it, so the manual path is there for when the
  * detector cannot find a face behind the retractors.
@@ -44,7 +44,7 @@ export function MatchingStep() {
    * Guards a slow detection landing after the photos it ran on changed.
    * Without it, rotating or swapping a photo mid-detection let the stale run
    * install pairs computed from the old images -- and a consistent-but-wrong
-   * set fits with a small residual, so it could even auto-confirm (spec 11.2).
+   * set fits with a small residual, so it could even auto-confirm.
    */
   const runId = useRef(0);
   /** Drag-in-progress on the overlay: distinguishes a nudge from a click. */
@@ -281,7 +281,7 @@ export function MatchingStep() {
 
       {/*
         The overlay: the retracted photo transformed onto the smile photo at
-        partial opacity -- the spec's fine-tuning view (stage 3). Dragging it
+        partial opacity -- the fine-tuning view. Dragging it
         nudges the alignment, which is the correction for what a similarity fit
         cannot model: head pitch between the two shots moves the mouth relative
         to the eyes, and only a human can say where the teeth should sit.
@@ -327,7 +327,7 @@ export function MatchingStep() {
             if (drag && !drag.moved) clickSmile(contentPoint(event));
           }}
         >
-          {/* One transform for the photo and every overlay (spec 7.3). */}
+          {/* One transform for the photo and every overlay. */}
           <g ref={contentRef} transform={zoom.groupTransform}>
           <image href={smile.url} x={0} y={0} width={smileSize.width} height={smileSize.height} />
           {matching.transform && (

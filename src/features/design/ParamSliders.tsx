@@ -1,12 +1,11 @@
 import { PARAM_LIMITS, useAppStore, type FineTuneParams } from '../../state/store.js';
 
 /**
- * The five fine-tune parameters (spec 6.4) -- the dominant interaction in the
- * previous product, reproduced with its validated ranges and step sizes.
+ * The fine-tune parameters -- the dominant interaction in the design step.
  *
  * Dragging updates the design live so the arch follows the slider; the store
  * commits one undo entry per drag, on release, rather than one per value
- * change (spec 9.3).
+ * change.
  */
 
 const LABELS: Record<keyof FineTuneParams, { name: string; hint: string }> = {

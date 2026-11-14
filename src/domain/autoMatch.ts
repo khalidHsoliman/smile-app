@@ -1,5 +1,5 @@
 /**
- * Sanity limits for an automatic alignment (spec 15).
+ * Sanity limits for an automatic alignment.
  *
  * The correspondences themselves are built in `vision/matchPairs.ts`; this
  * holds the pure quality judgments applied to the fitted result.

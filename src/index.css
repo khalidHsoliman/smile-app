@@ -475,7 +475,7 @@ body { margin: 0; }
 }
 .report__footer p { margin: 0; font-size: 0.7rem; opacity: 0.6; line-height: 1.5; }
 
-/* --- print (spec 8.4): the report IS the PDF --- */
+/* --- print: the report IS the PDF --- */
 
 @media print {
   /*

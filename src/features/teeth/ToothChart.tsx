@@ -6,7 +6,7 @@ import { toothType } from '../../domain/templates/buildTemplate.js';
 import { useAppStore } from '../../state/store.js';
 
 /**
- * The dental chart (spec 3.3).
+ * The dental chart.
  *
  * Drawn as an anatomical arch rather than a row of numbers: a clinician should
  * not have to know that Universal 8 is the upper right central to pick it. Each

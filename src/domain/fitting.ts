@@ -1,11 +1,11 @@
 /**
- * Arch fitting (spec 6.3) -- the algorithm the product is built on.
+ * Arch fitting -- the algorithm the product is built on.
  *
  * Given the face frame, a template and the selected teeth, place every tooth.
  * Everything here happens in **face-frame coordinates**: normalized units where
  * the origin is the midline crossed with the lip line, +x runs toward the
  * patient's left, +y runs down the face, and one unit is the inter-alar width.
- * Conversion to pixels happens once, at render time (spec 5.2, 11.3).
+ * Conversion to pixels happens once, at render time.
  *
  * Pure. No React, no store, no DOM.
  */
@@ -24,10 +24,8 @@ import type { Template, ToothTemplate } from './templates/types.js';
 /**
  * The global fine-tune parameters.
  *
- * Spec 6.4 lists five, inherited from the previous desktop product. Three are
- * kept as-is, one is renamed, one is replaced, and one is added -- each change
- * is justified where the parameter is used, and against how the field's own
- * tools name things.
+ * Each one is explained where the parameter is used, and named the way the
+ * field's own tools name things.
  */
 export interface FitParams {
   /** Width:length of the central incisor. Clinical target 0.80. */
@@ -75,7 +73,7 @@ export interface FitParams {
  *
  * `outline` is still the template's local path; the placement is expressed as a
  * transform so the renderer can emit `<path d={outline} transform=...>` and the
- * original geometry stays intact for per-tooth editing later (spec 11.6).
+ * original geometry stays intact for per-tooth editing later.
  */
 export interface PlacedTooth {
   universal: Universal;
@@ -88,7 +86,7 @@ export interface PlacedTooth {
   rotation: number;
   /** The template path this instance draws. */
   outline: string;
-  /** True for teeth added to complete the run -- rendered hidden (spec 6.3). */
+  /** True for teeth added to complete the run -- rendered hidden. */
   auxiliary: boolean;
 }
 
@@ -148,8 +146,8 @@ const INTER_ARCH_GAP = 0.04;
 
 /**
  * `smileCurve` runs -5..+5. At +5 the arch drops noticeably at the corners;
- * at -5 it reverses into the flat-or-reverse arc that spec 6.2 calls the most
- * common aesthetic failure. The unit is face-frame y per unit x squared.
+ * at -5 it reverses into the flat-or-reverse arc, the most common aesthetic
+ * failure. The unit is face-frame y per unit x squared.
  */
 export const CURVE_SCALE = 0.06;
 
@@ -354,7 +352,7 @@ function redScaleFor(
  * How much to stretch crown length for the `ratio` parameter.
  *
  * `ratio` is the target width:length. Lower means longer and narrower, higher
- * means shorter and wider (spec 6.4). Width is held and only length adjusted,
+ * means shorter and wider. Width is held and only length adjusted,
  * so the arch keeps its span while the teeth change proportion.
  *
  * Returns a multiplier on the authored length, so it applies uniformly to every
@@ -445,7 +443,7 @@ const SPLAY_DAMPING = 0.35;
 /**
  * Fit the whole design.
  *
- * The selection is widened into contiguous, anchored runs first (spec 6.3) --
+ * The selection is widened into contiguous, anchored runs first --
  * fitting cannot lay out a sparse selection, and a run without a central has no
  * anchor to walk outward from.
  */
@@ -467,6 +465,6 @@ export function fitArches(
   };
 }
 
-/** The teeth a user can see and select -- auxiliaries are hidden (spec 6.3). */
+/** The teeth a user can see and select -- auxiliaries are hidden. */
 export const visibleTeeth = (result: FitResult): PlacedTooth[] =>
   result.teeth.filter((t) => !t.auxiliary);

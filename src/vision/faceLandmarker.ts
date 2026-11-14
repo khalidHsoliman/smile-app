@@ -1,5 +1,5 @@
 /**
- * MediaPipe Face Landmarker wrapper (spec 5.3).
+ * MediaPipe Face Landmarker wrapper.
  *
  * Both the WASM runtime and the model are served from our own origin rather
  * than a CDN. That is not incidental: the application is a no-backend, patient
@@ -8,7 +8,7 @@
  * means the tool works offline once loaded.
  *
  * Loading is memoized and detection is serialized -- a user can outrun both
- * (spec 11.2).
+ *.
  */
 
 import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
@@ -54,7 +54,7 @@ export function loadFaceLandmarker(): Promise<FaceLandmarker> {
 /**
  * Serializes detection. A user who re-uploads or rotates while a detection is
  * in flight would otherwise have two runs racing to write the same references,
- * and the loser could land last (spec 11.2).
+ * and the loser could land last.
  */
 let queue: Promise<unknown> = Promise.resolve();
 

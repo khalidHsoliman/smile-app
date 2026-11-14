@@ -18,8 +18,6 @@ decision to be taken explicitly -- not something to slip in for convenience.
 ## Scope
 
 **2D only.** No intraoral scans, no meshes, no 3D workflow, and no mode flag anticipating one.
-See `CLAUDE.md` for the full constraint list and `SMILE_DESIGN_KNOWLEDGE.md` for the domain
-specification.
 
 ## Stack
 

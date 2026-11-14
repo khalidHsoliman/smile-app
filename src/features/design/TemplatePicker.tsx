@@ -6,7 +6,7 @@ import { useAppStore } from '../../state/store.js';
 const PREVIEW_RUN = [6, 7, 8, 9, 10, 11];
 
 /**
- * Template selection (spec 6.1).
+ * Template selection.
  *
  * Each option previews its own tooth set rather than naming it alone -- the
  * choice is a conversation the clinician has with the patient, and the

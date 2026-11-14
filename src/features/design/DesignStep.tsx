@@ -17,11 +17,11 @@ import { UndoControls } from './UndoControls.js';
 import { ToothLayer } from './ToothLayer.js';
 
 /**
- * The design step (spec 6): the arch fitted onto the photo, with the five
+ * The design step: the arch fitted onto the photo, with the five
  * fine-tune sliders.
  *
  * The fit is **derived**, recomputed from frame + template + params on every
- * render rather than stored (spec 9.1). It is cheap -- a couple of dozen teeth
+ * render rather than stored. It is cheap -- a couple of dozen teeth
  * of arithmetic -- and keeping it derived removes any chance of the design and
  * its inputs drifting apart.
  */
@@ -90,7 +90,7 @@ export function DesignStep() {
   }, [photoUrl, aperture, paletteSampled, setPalette]);
 
   /*
-   * The fit, then the manual deltas on top of it (spec 11.6). Two steps, not
+   * The fit, then the manual deltas on top of it. Two steps, not
    * one: the fit never sees the edits, so a slider change recomputes cleanly
    * and the deltas reapply to the new placement instead of being destroyed.
    */
@@ -135,7 +135,7 @@ export function DesignStep() {
                 if (e.button === 0) setToothSelection([]);
               }}
             />
-            {/* One transform for the photo and every overlay (spec 7.3). */}
+            {/* One transform for the photo and every overlay. */}
             <g transform={zoom.groupTransform}>
               <image
                 href={photo.url}
@@ -176,8 +176,8 @@ export function DesignStep() {
 
           {/*
             Teeth opacity is a first-class, always-visible control, not a buried
-            one: toggling it to compare against the original was the previous
-            product's most-used control (spec 7.1).
+            one: toggling it to compare against the original is the most-used
+            control.
           */}
           <label className="opacity">
             <span className="slider__name">Teeth opacity</span>

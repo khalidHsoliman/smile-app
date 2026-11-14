@@ -3,9 +3,9 @@
  *
  * Two rules this file exists to enforce:
  *
- * 1. Cascade invalidation (spec 4.1) happens in exactly one place --
+ * 1. Cascade invalidation happens in exactly one place --
  *    `invalidateAfter`. Components never reset a downstream step themselves.
- * 2. Derived state stays derived (spec 9.1). The face frame comes from the
+ * 2. Derived state stays derived. The face frame comes from the
  *    references; tooth placements come from frame + template + params. Nothing
  *    is stored twice.
  */
@@ -60,9 +60,7 @@ import {
 /**
  * The global fine-tune parameters.
  *
- * Spec 6.4 inherited five from the previous desktop product. Three are kept,
- * one renamed, one replaced and one added -- see `domain/fitting.ts` for the
- * reasoning behind each change.
+ * See `domain/fitting.ts` for what each one does.
  */
 export interface FineTuneParams {
   /** Width-to-length ratio of the central incisor. Clinical target 0.80. */
@@ -80,8 +78,7 @@ export interface FineTuneParams {
 }
 
 /**
- * Production-validated ranges and step sizes, adopted verbatim from the shipped
- * desktop product (spec 6.4). Used by the sliders and by `clampParams`.
+ * Ranges and step sizes. Used by the sliders and by `clampParams`.
  */
 export const PARAM_LIMITS = {
   /*
@@ -104,7 +101,7 @@ export const PARAM_LIMITS = {
 } as const satisfies Record<keyof FineTuneParams, { min: number; max: number; step: number }>;
 
 export const DEFAULT_PARAMS: FineTuneParams = {
-  ratio: 0.8, // the clinical target for a central incisor (spec 1.4)
+  ratio: 0.8, // the clinical target for a central incisor
   scale: 1.0,
   smileCurve: 1.0, // a visible smile arc by default; flat reads as artificial
   occlusalGap: 0,
@@ -113,7 +110,7 @@ export const DEFAULT_PARAMS: FineTuneParams = {
 };
 
 /**
- * Rebuild `matching.transform` from its inputs (spec 9.1).
+ * Rebuild `matching.transform` from its inputs.
  *
  * The transform is derived, never edited: it is the landmark similarity, then
  * whatever the teeth stage corrected, then whatever the clinician nudged. One
@@ -199,11 +196,11 @@ export interface AppState {
   selectedTeeth: Universal[];
 
   /**
-   * Alignment of the retracted photo onto the smile photo (spec 15).
+   * Alignment of the retracted photo onto the smile photo.
    *
    * `pairs` is what the clinician places or the detector seeds; `transform` is
    * derived from them and never edited directly, so the two cannot drift
-   * (spec 9.1). Null transform means the photos are not yet aligned.
+   *. Null transform means the photos are not yet aligned.
    */
   matching: {
     pairs: PointPair[];
@@ -225,8 +222,8 @@ export interface AppState {
     confirmed: boolean;
     /**
      * Manual fine-tune offset in smile-photo pixels, dragged on the overlay
-     * (spec 15 stage 3). Stored as an input; the transform is re-derived from
-     * pairs + nudge, never edited directly (spec 9.1). This is the escape
+     *. Stored as an input; the transform is re-derived from
+     * pairs + nudge, never edited directly. This is the escape
      * valve for what a similarity fit cannot model -- head pitch between the
      * two shots moves the mouth relative to the eyes, and only a human can say
      * where the teeth should sit.
@@ -235,8 +232,8 @@ export interface AppState {
   };
 
   /**
-   * Facial analysis (spec 5). `refs` is what the user edits; `frame` is derived
-   * from it and never edited directly (spec 9.1).
+   * Facial analysis. `refs` is what the user edits; `frame` is derived
+   * from it and never edited directly.
    */
   face: {
     refs: FacialReferences | null;
@@ -250,11 +247,10 @@ export interface AppState {
     params: FineTuneParams;
     /**
      * Opacity of the tooth layer. A first-class control, not a buried one:
-     * toggling it to compare against the original was the previous product's
-     * most-used control (spec 7.1).
+     * toggling it to compare against the original is the most-used control.
      */
     teethOpacity: number;
-    /** Clip the design to the mouth aperture (spec 7.1). */
+    /** Clip the design to the mouth aperture. */
     lipMask: boolean;
     /**
      * Carry the photograph's own light onto the design, so it sits *in* the
@@ -279,25 +275,25 @@ export interface AppState {
     /** The photo-derived palette, kept so "Use photo colour" can restore it. */
     sampledPalette: ToothPalette | null;
     /**
-     * Per-tooth adjustments, as deltas on top of the computed fit (spec 11.6).
+     * Per-tooth adjustments, as deltas on top of the computed fit.
      * Never replacements -- that is what lets a global slider change and a
      * manual nudge coexist.
      */
     edits: ToothEdits;
     /** Teeth the user has selected for editing. */
     selection: Universal[];
-    /** Apply every edit to the contralateral partner as well (spec 6.5). */
+    /** Apply every edit to the contralateral partner as well. */
     mirrorMode: boolean;
   };
 
   /**
-   * One pan/zoom transform shared by the photo and every overlay (spec 7.3).
+   * One pan/zoom transform shared by the photo and every overlay.
    * Layers must never transform independently.
    */
   view: { transform: Matrix2D };
 
   /**
-   * Undo history over the design (spec 9.3).
+   * Undo history over the design.
    *
    * Only genuine design decisions are tracked. View preferences -- teeth
    * opacity, the lip-mask toggle, the current selection -- are deliberately
@@ -311,7 +307,7 @@ export interface AppState {
   /** Snapshot staged by an open batch, pushed on its first real change. */
   pendingUndo: DesignSnapshot | null;
 
-  /** Report header fields (spec 8.1). Not design inputs -- purely metadata. */
+  /** Report header fields. Not design inputs -- purely metadata. */
   report: {
     patientName: string;
     clinicName: string;
@@ -386,7 +382,7 @@ export interface AppState {
   /**
    * Open an undo batch. Everything until `endUndoBatch` collapses into the one
    * entry pushed here, so a slider drag is one undo step and not one per pixel
-   * (spec 9.3).
+   *.
    */
   startUndoBatch(): void;
   endUndoBatch(): void;
@@ -403,7 +399,7 @@ export interface AppState {
   loadDemoCase(): Promise<void>;
   /**
    * Mark the start of a slider drag. Everything until `endParamDrag` is one
-   * user action and must collapse into a single undo entry (spec 9.3).
+   * user action and must collapse into a single undo entry.
    */
   beginParamDrag(): void;
   endParamDrag(): void;
@@ -477,7 +473,7 @@ const snapshotOf = (design: AppState['design']): DesignSnapshot => ({
  * Every design mutation routes through here rather than each action deciding
  * for itself, so an action cannot silently forget to be undoable. Inside an
  * open batch this replaces the present instead of pushing, which is what makes
- * a slider drag one entry rather than one per value (spec 9.3).
+ * a slider drag one entry rather than one per value.
  */
 function record(
   state: AppState,
@@ -491,7 +487,7 @@ function record(
   //
   // Inside a batch: the entry was already pushed when the batch opened, so this
   // only advances the present -- which is what collapses a whole drag into one
-  // undo step (spec 9.3).
+  // undo step.
   if (state.undoBatchDepth > 0) {
     // First change inside a batch commits the snapshot staged when it opened;
     // later ones only advance the present, collapsing the gesture to one entry.
@@ -551,8 +547,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (!get().unlockedSteps.has(step)) return;
     // Undoing across a step transition produces incoherent states -- a design
     // whose facial references no longer exist -- so the history is dropped at
-    // the boundary (spec 9.3). The view resets too: fit-to-view on entry to
-    // every step, because steps have different natural framings (spec 7.3).
+    // the boundary. The view resets too: fit-to-view on entry to
+    // every step, because steps have different natural framings.
     set((state) => ({
       step,
       history: clearHistory(state.history),
@@ -652,7 +648,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       set({ face: { refs: null, frame: null, error: null } });
     } else {
       // The frame is derived here and nowhere else, so it cannot drift from the
-      // references that produced it (spec 9.1). Degenerate references are
+      // references that produced it. Degenerate references are
       // surfaced rather than silently yielding a plausible-but-wrong frame.
       try {
         set({ face: { refs, frame: computeFaceFrame(refs), error: null } });
@@ -662,7 +658,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }
 
     // Any reference change re-fits the teeth, so everything downstream is stale
-    // (spec 5.4). Invalidate *before* re-gating: invalidateAfter re-locks every
+    //. Invalidate *before* re-gating: invalidateAfter re-locks every
     // later step, so unlocking first would immediately be undone.
     get().invalidateAfter('analysis');
     get().syncAnalysisGate();
@@ -718,13 +714,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   /**
-   * The upload step's exit condition (spec 4.2): a smile photo and at least one
+   * The upload step's exit condition: a smile photo and at least one
    * selected tooth. The retracted photo is recommended but the MVP degrades
-   * gracefully without it (spec 3.1), so it is not gated on.
+   * gracefully without it, so it is not gated on.
    *
    * Authoritative in *both* directions. Unlocking only would let a step stay
    * reachable after the user removed the photo or cleared the selection that
-   * opened it -- the stale-downstream-state trap of spec 11.1.
+   * opened it -- the stale-downstream-state trap.
    */
   syncUploadGate() {
     const { photos, selectedTeeth } = get();
@@ -761,7 +757,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set({ selectedTeeth: [...new Set(teeth)].sort((a, b) => a - b) });
     // Tooth selection belongs to upload, so everything after upload is stale --
     // but the photos themselves must survive, which is why this invalidates
-    // from `upload` rather than resetting upload's own state (spec 4.1).
+    // from `upload` rather than resetting upload's own state.
     get().invalidateAfter('upload');
     get().syncUploadGate();
   },
@@ -839,7 +835,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   setMatchPairs(pairs) {
     // The transform is derived here and nowhere else, so it cannot drift from
-    // the pairs that produced it (spec 9.1). Fewer than two pairs leaves it
+    // the pairs that produced it. Fewer than two pairs leaves it
     // null rather than guessing -- a plausible-looking identity would render a
     // misaligned overlay with no visible cause.
     let transform: Matrix2D | null = null;
@@ -1014,7 +1010,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   /*
-   * Undo batching (spec 9.3).
+   * Undo batching.
    *
    * `startUndoBatch` records the state *before* the action. Every change while
    * the batch is open replaces the present rather than pushing, so the whole
@@ -1096,7 +1092,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       selectedTeeth: saved.selectedTeeth,
       report: saved.report,
       // The frame is derived, never stored, so it is recomputed below from the
-      // restored references (spec 9.1).
+      // restored references.
       face: { refs: null, frame: null, error: null },
     }));
 

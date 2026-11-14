@@ -8,7 +8,7 @@ import { useAppStore } from './state/store.js';
 import { useAutosave, type SaveState } from './state/useAutosave.js';
 
 /**
- * Shell. Each step's view lands in `features/<step>/` as it is built (spec 14);
+ * Shell. Each step's view lands in `features/<step>/` as it is built;
  * the remaining placeholders name the step so navigation and the cascade rule
  * can be exercised end to end.
  */

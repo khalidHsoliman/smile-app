@@ -1,8 +1,8 @@
 /**
- * The lip bounding box (spec 8.2).
+ * The lip bounding box.
  *
  * A rectangle around the mouth, in image pixels, used to crop the report's
- * close-up pair. The spec is blunt that this crop is the most persuasive image
+ * close-up pair. This crop is the most persuasive image
  * in the whole report -- it is what the patient leans in to look at -- so it is
  * worth getting the framing right rather than cropping to the raw landmark
  * extent.

@@ -1,8 +1,8 @@
 /**
- * Per-tooth edits (spec 6.5, 11.6).
+ * Per-tooth edits.
  *
  * **Edits are deltas applied on top of the computed fit, never replacements
- * for it.** That is the whole design, and spec 11.6 is emphatic about it: if a
+ * for it.** That is the whole design: if a
  * per-tooth edit replaced the fitted placement, the next global slider change
  * would either destroy the manual work or have to be blocked while editing.
  * As deltas, the two compose -- a clinician can nudge tooth 9, then change the
@@ -92,7 +92,7 @@ export function composeEdits(earlier: ToothEdit, later: ToothEdit): ToothEdit {
 /**
  * Apply the edits to a fitted arch.
  *
- * Runs *after* the fit, as spec 11.6 requires -- the fit itself never sees the
+ * Runs *after* the fit -- the fit itself never sees the
  * edits, so a global parameter change recomputes cleanly and the deltas
  * reapply on top of the new placement.
  */
@@ -135,7 +135,7 @@ export const mirrorEdit = (edit: ToothEdit): ToothEdit => ({
 
 /**
  * Apply an edit to a tooth and, in mirror mode, the reflected edit to its
- * partner (spec 6.5).
+ * partner.
  *
  * Mirror mode is a toggle rather than a separate action because symmetric
  * adjustment is the common case -- a clinician lengthening one central almost

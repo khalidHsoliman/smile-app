@@ -1,5 +1,5 @@
 /**
- * Correspondences for photo matching, from raw landmarks (spec 15).
+ * Correspondences for photo matching, from raw landmarks.
  *
  * Both photographs are run through the same face model, so index i in one
  * result and index i in the other are the same mesh vertex on the same face.

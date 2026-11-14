@@ -1,12 +1,12 @@
 /**
- * Similarity transform fitting (spec 15).
+ * Similarity transform fitting.
  *
  * Aligns the retracted photograph to the smile photograph so the two can be
  * compared and the design overlaid on both.
  *
  * A **similarity** transform -- translation, rotation and one uniform scale --
- * deliberately, not a homography or a full affine. The spec is explicit about
- * this and the reasoning is sound: both photographs are frontal portraits of
+ * deliberately, not a homography or a full affine. The reasoning: both
+ * photographs are frontal portraits of
  * the same face taken minutes apart, so the genuine difference between them is
  * camera distance and a little head rotation. A homography has eight degrees of
  * freedom and will happily fit perspective and shear that is not there, turning

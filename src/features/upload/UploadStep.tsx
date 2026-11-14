@@ -4,7 +4,7 @@ import { ToothChart } from '../teeth/ToothChart.js';
 import { useAppStore } from '../../state/store.js';
 
 /**
- * The upload step: two photographs and the teeth of interest (spec 3).
+ * The upload step: two photographs and the teeth of interest.
  *
  * The step clears once a smile photo and at least one tooth are present; the
  * store owns that rule (`syncUploadGate`), not this component.

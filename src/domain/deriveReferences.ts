@@ -1,5 +1,5 @@
 /**
- * Landmarks -> the four facial references (spec 5.3).
+ * Landmarks -> the four facial references.
  *
  * Pure and detector-agnostic: it takes an array of normalized points and the
  * image size. That keeps the MediaPipe dependency in `vision/` and lets this be
@@ -73,8 +73,8 @@ export function deriveReferences(
    * Assign left and right by measured position, not by the index's label.
    *
    * Whether MediaPipe's "left" means the image's or the subject's has differed
-   * between versions and is exactly the sort of thing spec 5.3 warns not to
-   * trust. Measuring settles it: in a frontal photograph the patient's left is
+   * between versions and is not to be
+   * trusted. Measuring settles it: in a frontal photograph the patient's left is
    * always at the larger image x, whichever index reported it. That also keeps
    * the draggable handle labels honest -- a "Left pupil" handle that seeds onto
    * the patient's right eye is a defect a clinician sees immediately.

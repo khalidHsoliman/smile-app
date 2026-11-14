@@ -1,5 +1,5 @@
 /**
- * Local persistence (spec 12, in scope).
+ * Local persistence.
  *
  * Everything stays on the device. The photos are patient photographs, so this
  * is IndexedDB in the clinician's own browser and nothing else -- no server, no
@@ -40,7 +40,7 @@ export interface StoredPhoto {
  *
  * Deliberately stores *inputs*, not derived state: the face frame comes back
  * from the references and the tooth placements from the fit, so nothing here
- * can drift from what it was computed from (spec 9.1).
+ * can drift from what it was computed from.
  */
 export interface StoredCase {
   id: string;
@@ -51,7 +51,7 @@ export interface StoredCase {
   /**
    * The photo alignment's *inputs* -- the pairs, what the teeth stage
    * corrected, and the manual nudge; the transform is re-derived on restore
-   * (spec 9.1). Optional so cases saved before matching existed still load;
+   *. Optional so cases saved before matching existed still load;
    * they re-align with one click.
    */
   matching?: {

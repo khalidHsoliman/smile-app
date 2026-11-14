@@ -1,5 +1,5 @@
 /**
- * Applying a rotation to the pixels themselves (spec 3.1, 11.4).
+ * Applying a rotation to the pixels themselves.
  *
  * Rotation used to be carried as a number beside the photo and re-applied by
  * every consumer at render time. That leaked a coordinate system into eight
@@ -11,8 +11,7 @@
  *
  * Baking removes the class of bug rather than the instances: after this, every
  * photo in the store is already the right way up, and no consumer needs to know
- * rotation ever existed. That is what the spec means by normalising orientation
- * at load.
+ * rotation ever existed. That is what normalising orientation at load means.
  */
 
 import type { Photo } from '../../state/store.js';

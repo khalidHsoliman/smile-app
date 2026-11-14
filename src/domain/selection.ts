@@ -1,7 +1,7 @@
 /**
- * Tooth-selection semantics for the chart (spec 3.3).
+ * Tooth-selection semantics for the chart.
  *
- * Two behaviours users depended on in the previous product:
+ * Two behaviours clinicians depend on:
  *
  *  - **Range fill.** Clicking two teeth in an arch selects everything between
  *    them. Clinicians pick the corners of the treatment zone (upper 6-11 is the

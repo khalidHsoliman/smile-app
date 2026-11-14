@@ -4,7 +4,7 @@ import type { ToothEdit } from '../../domain/toothEdits.js';
 import { useAppStore } from '../../state/store.js';
 
 /**
- * Per-tooth refinement (spec 6.5).
+ * Per-tooth refinement.
  *
  * Nudge buttons rather than free dragging. Dragging a tooth on a photograph
  * sounds more direct but is worse in practice: the adjustments that matter here
@@ -14,7 +14,7 @@ import { useAppStore } from '../../state/store.js';
  * moves the tooth.
  *
  * Everything here produces a *delta* on the computed fit, never a replacement
- * (spec 11.6) -- so a global slider change afterwards keeps the manual work.
+ * -- so a global slider change afterwards keeps the manual work.
  */
 
 /** One press, in face-frame units. About a tenth of a central incisor width. */

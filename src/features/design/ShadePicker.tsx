@@ -6,12 +6,11 @@ import {
 } from '../../vision/sampleToothColor.js';
 
 /**
- * Tooth shade control (spec 8.4).
+ * Tooth shade control.
  *
  * The palette is normally sampled from the photograph, but shade is part of the
  * patient conversation -- "what if we went a shade brighter?" -- so it has to be
- * adjustable, and the previous product let the user set it for the report
- * specifically.
+ * adjustable, and the user can set it for the report specifically.
  *
  * One colour and one brightness, not four colours. The four tones of a tooth
  * are not independent: the cervical third is a warmer, darker version of the
@@ -95,7 +94,7 @@ export function ShadePicker() {
  * Recover the brightness offset a palette was built with.
  *
  * The slider needs a value to show, and storing it separately would be a second
- * copy of the same truth (spec 9.1). The offset is the gap between the base and
+ * copy of the same truth. The offset is the gap between the base and
  * the highlight, which `paletteFromBase` derives deterministically.
  */
 function brightnessOf(palette: ToothPalette): number {

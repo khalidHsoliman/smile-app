@@ -1,5 +1,5 @@
 /**
- * Decoding an uploaded file into a `Photo` (spec 3.1).
+ * Decoding an uploaded file into a `Photo`.
  *
  * Impure by nature -- it touches Blob, ImageBitmap and object URLs -- so it
  * lives in the feature, not in `domain/`. The orientation arithmetic it defers
@@ -25,8 +25,8 @@ export class PhotoLoadError extends Error {}
  * Decode `file` into a `Photo`.
  *
  * Orientation is delegated to the browser via `imageOrientation: 'from-image'`,
- * which honours the EXIF tag during decode. The spec warns against trusting
- * this completely (11.4); the manual rotate control on the tile is the
+ * which honours the EXIF tag during decode. That is not trusted
+ * completely; the manual rotate control on the tile is the
  * mitigation, and `photo.rotation` is applied on top of whatever the decoder
  * produced.
  */

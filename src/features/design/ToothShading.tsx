@@ -1,5 +1,5 @@
 /**
- * Tooth shading (spec 7.1, 7.2).
+ * Tooth shading.
  *
  * Real enamel is not flat white. Three things carry most of the realism, and
  * all three are reachable in plain SVG:
@@ -10,8 +10,8 @@
  *    no dentine behind it;
  *  - a soft **highlight** runs down the labial surface.
  *
- * Deliberately no WebGL. Spec 7.2 reserves photorealistic compositing for a
- * later polish pass and warns it must not shape the MVP; gradients get most of
+ * Deliberately no WebGL. Photorealistic compositing is left for a later
+ * polish pass and must not shape the MVP; gradients get most of
  * the credibility for none of the architectural cost.
  *
  * And deliberately no `feSpecularLighting`, which is the obvious way to do this

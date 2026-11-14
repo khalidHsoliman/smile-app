@@ -9,10 +9,10 @@ interface PhotoTileProps {
 }
 
 /**
- * One photo drop tile (spec 3.1).
+ * One photo drop tile.
  *
  * The tile owns its own busy flag and refuses drops while decoding -- users
- * reliably drop a second photo mid-processing (spec 9.2).
+ * reliably drop a second photo mid-processing.
  */
 export function PhotoTile({ kind, title, hint }: PhotoTileProps) {
   const photo = useAppStore((s) => s.photos[kind]);

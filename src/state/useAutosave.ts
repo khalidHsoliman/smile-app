@@ -12,12 +12,12 @@ import {
 export type SaveState = 'idle' | 'saving' | 'saved' | 'failed' | 'unavailable';
 
 /**
- * Autosave and restore (spec 12, in scope).
+ * Autosave and restore.
  *
  * Saves are debounced and serialized: a slider drag fires dozens of store
  * updates a second, and writing a multi-megabyte photo on each would stall the
  * tab. The debounce coalesces the burst; the in-flight guard stops two writes
- * racing to the same key (spec 11.2).
+ * racing to the same key.
  */
 const DEBOUNCE_MS = 1200;
 

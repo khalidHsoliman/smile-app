@@ -4,7 +4,7 @@
  * Small on purpose. Every coordinate space in the application -- image pixels,
  * viewport pixels, normalized face units -- is related to the others by an
  * affine transform, so one shared implementation keeps the conversions honest
- * (spec 11.3).
+ *.
  */
 
 export interface Vec2 {
@@ -118,7 +118,7 @@ export const toSvgMatrix = (m: Matrix2D): string =>
   `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`;
 
 /**
- * Zoom a view transform about a fixed point (spec 7.3).
+ * Zoom a view transform about a fixed point.
  *
  * `point` is in the root viewBox space -- the cursor position -- and stays
  * visually fixed while everything scales around it, which is what makes
@@ -158,7 +158,7 @@ export interface Rect {
 /**
  * The transform that fits a `content`-sized box into `viewport`, centred,
  * preserving aspect ratio. `padding` is a fraction of the viewport to leave
- * as margin (spec 7.3 -- fit-to-view is called on entry to every step).
+ * as margin.
  */
 export function fitToView(
   content: { width: number; height: number },

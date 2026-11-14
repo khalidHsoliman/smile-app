@@ -1,14 +1,14 @@
 /**
- * The linear workflow (spec 4).
+ * The linear workflow.
  *
  * Each step unlocks the next, and editing an earlier step invalidates every
  * later one. That cascade is the single most important architectural
- * constraint in the application (spec 4.1, 11.1).
+ * constraint in the application.
  */
 
 /*
  * Matching sits between upload and analysis, aligning the retracted photo to
- * the smile photo (spec 15) so the design can be shown on both and the report
+ * the smile photo so the design can be shown on both and the report
  * carries a genuine second before/after pair.
  *
  * It is skipped entirely when there is no retracted photo -- the step exists

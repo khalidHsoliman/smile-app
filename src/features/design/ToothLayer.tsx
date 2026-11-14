@@ -48,7 +48,7 @@ interface ToothLayerProps {
 }
 
 /**
- * The design layer: template teeth placed on the photo (spec 7.1).
+ * The design layer: template teeth placed on the photo.
  *
  * Three things matter here.
  *
@@ -69,7 +69,7 @@ interface ToothLayerProps {
  * worth more than the coverage.
  *
  * **Untouched outlines.** Each tooth draws its template path plus a transform,
- * so the source geometry survives for per-tooth editing later (spec 11.6), and
+ * so the source geometry survives for per-tooth editing later, and
  * the face-frame-to-pixels matrix is built once for the layer, not per tooth.
  */
 export function ToothLayer({

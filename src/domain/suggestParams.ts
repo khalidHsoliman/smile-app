@@ -128,12 +128,12 @@ const LIP_CONSONANCE = 0.9;
  *
  * The slider's full range is there for deliberate clinical choices, including
  * the reverse curve. A measurement is not a choice: a bad lip detection that
- * produced -5 would open the design step on the failure mode spec 6.2 calls the
+ * produced -5 would open the design step on the reverse smile curve, the
  * most common aesthetic error, with nothing on screen to say it was guessed.
  * Inside these bounds a poor measurement is merely unremarkable.
  *
  * The ceiling was 3, chosen as the value that lifts a canine tip about 0.8mm
- * above the central edge -- the middle of the range spec 6.2 asks for. It was
+ * above the central edge -- the middle of the usual clinical range. It was
  * measured at scale 1.0, and at the smaller scales the aperture actually
  * produces the same setting lifts the canine less, because the lift goes as the
  * square of the distance from the midline. A real lip wanted 3.46 and got 3.

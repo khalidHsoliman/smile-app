@@ -1,5 +1,5 @@
 /**
- * Undo/redo history (spec 9.3).
+ * Undo/redo history.
  *
  * A snapshot stack over the design slice rather than a command stack or immer
  * patches. The design slice is small -- six numbers, a template id, a palette
@@ -57,7 +57,7 @@ export function push<T>(history: History<T>, present: T): History<T> {
  *
  * This is what makes batching work: every intermediate value during a slider
  * drag goes through here, so the drag leaves exactly one undo entry -- the one
- * pushed when it started (spec 9.3).
+ * pushed when it started.
  */
 export const replace = <T>(history: History<T>, present: T): History<T> => ({
   ...history,
@@ -93,9 +93,7 @@ export function redo<T>(history: History<T>): History<T> {
  * Drop the history, keeping the current state.
  *
  * Called at step boundaries: undoing across a step transition produces
- * incoherent states -- a design whose facial references no longer exist -- and
- * the previous product cleared history deliberately for exactly that reason
- * (spec 9.3).
+ * incoherent states -- a design whose facial references no longer exist.
  */
 export const clearHistory = <T>(history: History<T>): History<T> =>
   initHistory(history.present);

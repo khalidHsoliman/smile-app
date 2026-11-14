@@ -10,7 +10,7 @@ import {
 } from '../../domain/geometry.js';
 
 /**
- * Pan and zoom for a photo stage (spec 7.3).
+ * Pan and zoom for a photo stage.
  *
  * One transform, held in the store and shared by the photo and every overlay --
  * the stages render their content inside a single `<g>` carrying it, so layers

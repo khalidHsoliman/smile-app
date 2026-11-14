@@ -5,7 +5,7 @@ import { downloadBlob } from '../../export/snapshot.js';
 import { useSnapshots, type SnapshotKind } from './useSnapshots.js';
 
 /**
- * The report (spec 8).
+ * The report.
  *
  * "The report is what the clinician shows the patient. Treat it as a product
  * surface, not an export utility." So it is laid out to be shown on screen and
@@ -101,7 +101,7 @@ export function ReportStep() {
         </header>
 
         {/*
-          The close-up pair leads. Spec 8.1 calls this the most persuasive image
+          The close-up pair leads. It is the most persuasive image
           in the report -- it is what the patient leans in to look at -- so it
           gets the top of the page rather than being buried under the full
           photographs.

@@ -1,14 +1,14 @@
 /**
- * The face frame: the coordinate system every design lives in (spec 5.2).
+ * The face frame: the coordinate system every design lives in.
  *
  * Design geometry is authored in normalized face units and converted to pixels
  * only at render time. That is what makes a design invariant to photo
  * resolution, crop, zoom and head tilt -- and it eliminates the family of bugs
  * where the design drifts when the photo is re-fitted to the viewport
- * (spec 11.3).
+ *.
  *
  * The frame is *derived*, never stored alongside its inputs: it is recomputed
- * from the references whenever they change (spec 9.1).
+ * from the references whenever they change.
  *
  * Face-unit conventions:
  *   - origin (0,0) is the midline crossed with the lip line -- the anchor the
@@ -35,7 +35,7 @@ import {
 } from './geometry.js';
 
 /**
- * The four user-editable facial references (spec 5.1), in image pixels.
+ * The four user-editable facial references, in image pixels.
  *
  * These are what the clinician drags. Every one of them is a judgment call --
  * especially the midline -- so the detector only seeds them.
@@ -62,7 +62,7 @@ export interface FacialReferences {
    * The mouth aperture as a closed ring, in image pixels.
    *
    * The design is clipped to this so teeth cannot paint over the lips
-   * (spec 7.1). Optional: it comes from the detector, and a hand-placed set of
+   *. Optional: it comes from the detector, and a hand-placed set of
    * references has no aperture -- the design then renders unmasked rather than
    * vanishing entirely.
    */
@@ -119,7 +119,7 @@ export function computeFaceFrame(refs: FacialReferences): FaceFrame {
     throw new FaceFrameError('The lip line needs at least two points');
   }
 
-  // Roll comes from the pupils: heads are always slightly tilted (spec 5.1).
+  // Roll comes from the pupils: heads are always slightly tilted.
   const xAxis = facingAxis(refs.leftPupil, refs.rightPupil);
 
   return {

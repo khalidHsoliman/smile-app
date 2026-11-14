@@ -25,14 +25,14 @@ export interface Snapshots {
 }
 
 /**
- * Generates the report's snapshots (spec 8.3).
+ * Generates the report's snapshots.
  *
  * Six images: the full smile pair, the close-up pair -- the most persuasive
  * image in the report -- and the retracted pair when that photo exists.
  *
  * All rendered at the photo's native resolution, never the viewport's. The
  * whole run is serialized behind one promise so a user who clicks twice cannot
- * have two batches racing to write the same state (spec 11.2).
+ * have two batches racing to write the same state.
  */
 export function useSnapshots() {
   const photos = useAppStore((s) => s.photos);
@@ -68,7 +68,7 @@ export function useSnapshots() {
   );
   const alignedRefs = useMemo(() => withoutAperture(refs), [refs]);
 
-  /** The close-up crop, derived from the mouth aperture (spec 8.2). */
+  /** The close-up crop, derived from the mouth aperture. */
   const lipBox: Rect | null = useMemo(
     () =>
       refs?.mouthAperture && smileSize
@@ -140,7 +140,7 @@ export function useSnapshots() {
        * The retracted pair.
        *
        * The design lives in the smile photo's coordinates, so showing it on the
-       * retracted view needs the matching transform (spec 15). With an
+       * retracted view needs the matching transform. With an
        * alignment we invert it -- mapping the smile-photo frame into retracted
        * coordinates -- and get a true second before/after pair. Without one the
        * retracted photo appears as a reference only; overlaying an unaligned

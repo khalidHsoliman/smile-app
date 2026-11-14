@@ -1,8 +1,8 @@
 /**
  * MediaPipe Face Landmarker indices we depend on.
  *
- * The spec is explicit that these must be verified against the current model
- * rather than trusted (spec 5.3): index maps have shifted between MediaPipe
+ * These must be verified against the current model rather than trusted:
+ * index maps have shifted between MediaPipe
  * versions. They are isolated in this file so that verification has exactly one
  * place to touch, and so a version bump does not send anyone hunting through
  * the derivation code.
@@ -63,7 +63,7 @@ export const LOWER_LIP_UPPER_BORDER = [
  * The mouth aperture, as one closed ring of landmark indices.
  *
  * This is the inner opening between the lips -- the region where teeth are
- * actually visible. It is the clip path the design is masked to (spec 7.1);
+ * actually visible. It is the clip path the design is masked to;
  * without it the template teeth paint straight over the lips and every design
  * reads as pasted on.
  */

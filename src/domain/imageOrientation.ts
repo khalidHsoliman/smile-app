@@ -1,9 +1,9 @@
 /**
- * Photo orientation (spec 3.1, 11.4).
+ * Photo orientation.
  *
  * A meaningful fraction of real uploads arrive sideways: phones record the
  * sensor orientation in EXIF rather than rotating the pixels. Browsers mostly
- * honour that now, but the spec is explicit that we must not rely on it -- so
+ * honour that now, but we must not rely on it -- so
  * orientation is modelled here as data, and the user gets a manual rotate
  * control as the escape hatch.
  *

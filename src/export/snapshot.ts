@@ -1,11 +1,10 @@
 /**
- * Snapshot capture (spec 8.3).
+ * Snapshot capture.
  *
  * Renders the design to a raster image **at the photo's native resolution**,
- * not the viewport's. The spec is explicit that the previous product captured
- * through its render pipeline at native size and that the difference in print
- * was dramatic -- a 300px-wide viewport capture blown up to a PDF page looks
- * like a screenshot, which undermines the whole deliverable.
+ * not the viewport's. The difference in print is dramatic -- a 300px-wide
+ * viewport capture blown up to a PDF page looks like a screenshot, which
+ * undermines the whole deliverable.
  *
  * The approach: serialize an SVG containing the photo and the tooth layer, load
  * it as an image, draw it to an off-screen canvas at full size, and read a

@@ -11,7 +11,7 @@ const LABELS = {
 /**
  * Workflow navigation. Locked steps are genuinely unreachable -- the store
  * refuses the transition, so this is a display of state, not the enforcement
- * of it (spec 4.1).
+ * of it.
  */
 export function StepNav() {
   const items = useAppStore(stepNavItems);

@@ -1,5 +1,5 @@
 /**
- * Arch-run resolution (spec 6.3).
+ * Arch-run resolution.
  *
  * Arch fitting cannot lay out a sparse selection: each tooth is positioned
  * relative to its neighbour along the arch, and a central incisor is the anchor

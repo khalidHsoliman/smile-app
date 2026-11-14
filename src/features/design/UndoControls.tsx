@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useAppStore } from '../../state/store.js';
 
 /**
- * Undo and redo (spec 9.3).
+ * Undo and redo.
  *
  * Keyboard first -- Ctrl/Cmd-Z and Ctrl/Cmd-Shift-Z (with Ctrl-Y for the
  * Windows convention) -- with buttons alongside so the capability is visible

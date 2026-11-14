@@ -1,5 +1,5 @@
 /**
- * Carrying the face frame across a photo alignment (spec 15).
+ * Carrying the face frame across a photo alignment.
  *
  * The design is authored against the smile photo, so showing it on the
  * retracted view means expressing the same frame in the retracted photo's

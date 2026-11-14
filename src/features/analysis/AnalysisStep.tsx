@@ -12,7 +12,7 @@ import { ReferenceOverlay } from './ReferenceOverlay.js';
 type Status = 'idle' | 'detecting' | 'ready' | 'failed';
 
 /**
- * Facial analysis (spec 5): auto-detect the references, then let the clinician
+ * Facial analysis: auto-detect the references, then let the clinician
  * correct them. Detection only seeds the handles -- the midline in particular
  * is a matter of professional judgment, so it is always adjustable.
  */
@@ -108,7 +108,7 @@ export function AnalysisStep() {
           onPointerMove={(e) => void zoom.onPanMove(e)}
           onPointerUp={(e) => void zoom.onPanUp(e)}
         >
-          {/* One transform for the photo and every overlay (spec 7.3). */}
+          {/* One transform for the photo and every overlay. */}
           <g transform={zoom.groupTransform}>
             <image
               href={photo.url}

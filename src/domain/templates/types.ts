@@ -1,5 +1,5 @@
 /**
- * Tooth template types (spec 6.1).
+ * Tooth template types.
  *
  * A template is a set of idealized tooth shapes with a consistent aesthetic
  * character. Template choice is a conversation the clinician has with the
@@ -24,7 +24,7 @@ import type { Universal } from '../teeth.js';
  */
 export interface ToothTemplate {
   universal: Universal;
-  /** Closed SVG path in the local frame. 8-20 control points (spec 6.1). */
+  /** Closed SVG path in the local frame. 8-20 control points. */
   outline: string;
   /** Width relative to the central incisor at 1.0. */
   width: number;
@@ -38,7 +38,7 @@ export interface ToothTemplate {
    * How far this tooth's incisal edge sits *above* the central's, in width
    * units. Positive means shorter. Laterals are ~0.5-1mm shorter and canines
    * return to about the central's level -- this is what produces the
-   * characteristic gull-wing arc (spec 6.2).
+   * characteristic gull-wing arc.
    */
   incisalOffset: number;
 }
