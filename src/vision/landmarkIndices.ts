@@ -39,17 +39,21 @@ export const NOSE_TIP = 1;
 export const CHIN = 152;
 
 /**
- * The lower border of the upper lip, ordered from the image's right to its
- * left. This is the smile curve the incisal edges are laid against, so it is
- * sampled across the full width rather than at the centre alone.
+ * The lower border of the upper lip, ordered from the image's left to its
+ * right (78 is the corner at the image's left). This is the smile curve the
+ * incisal edges are laid against, so it is sampled across the full width
+ * rather than at the centre alone.
+ *
+ * Nothing relies on which way it runs -- only on neighbouring points being
+ * neighbours along the lip.
  */
 export const UPPER_LIP_LOWER_BORDER = [
   78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308,
 ] as const;
 
 /**
- * The upper border of the *lower* lip, ordered from the image's left back to
- * its right -- the reverse of `UPPER_LIP_LOWER_BORDER`, so concatenating the
+ * The upper border of the *lower* lip, ordered from the image's right back to
+ * its left -- the reverse of `UPPER_LIP_LOWER_BORDER`, so concatenating the
  * two walks the mouth aperture as one closed ring.
  *
  * 78 and 308 are the mouth corners and belong to both borders, so they are

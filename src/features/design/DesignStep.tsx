@@ -15,6 +15,7 @@ import { ZoomControls } from '../view/ZoomControls.js';
 import { vec } from '../../domain/geometry.js';
 import { UndoControls } from './UndoControls.js';
 import { ToothLayer } from './ToothLayer.js';
+import { Measurements } from '../measurements/Measurements.js';
 
 /**
  * The design step: the arch fitted onto the photo, with the five
@@ -226,6 +227,13 @@ export function DesignStep() {
           <ShadePicker />
 
           <ParamSliders />
+
+          <Measurements
+            refs={refs}
+            teeth={fit?.teeth ?? null}
+            template={template}
+            where="panel"
+          />
 
           <ToothEditor />
 

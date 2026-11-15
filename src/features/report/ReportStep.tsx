@@ -4,6 +4,7 @@ import { toFDI } from '../../domain/teeth.js';
 import { downloadBlob } from '../../export/snapshot.js';
 import { reportImageFileName } from '../../export/fileNames.js';
 import { useSnapshots, type SnapshotKind } from './useSnapshots.js';
+import { Measurements } from '../measurements/Measurements.js';
 
 /**
  * The report.
@@ -23,8 +24,9 @@ export function ReportStep() {
   const patientName = useAppStore((s) => s.report.patientName);
   const clinicName = useAppStore((s) => s.report.clinicName);
   const setReportField = useAppStore((s) => s.setReportField);
+  const refs = useAppStore((s) => s.face.refs);
 
-  const { snapshots, generate, busy, error } = useSnapshots();
+  const { snapshots, generate, busy, error, fit, template } = useSnapshots();
   const [generated, setGenerated] = useState(false);
 
   // Capture once on entry. Re-running on every render would re-encode several
@@ -100,6 +102,13 @@ export function ReportStep() {
               : 'No teeth selected'}
           </p>
         </header>
+
+        <Measurements
+          refs={refs}
+          teeth={fit?.teeth ?? null}
+          template={template}
+          where="report"
+        />
 
         {/*
           The close-up pair leads. It is the most persuasive image

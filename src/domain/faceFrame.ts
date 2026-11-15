@@ -54,8 +54,12 @@ export interface FacialReferences {
   midlineTop: Vec2;
   midlineBottom: Vec2;
   /**
-   * The lower border of the upper lip when smiling, ordered left to right.
-   * Controls vertical placement and the smile arc the incisal edges follow.
+   * The lower border of the upper lip when smiling. As detected it runs from
+   * the image's left to its right -- the patient's right to left on an
+   * unmirrored photo -- but nothing relies on the direction, only on
+   * neighbouring points being neighbours along the lip; dragged handles can
+   * end up anywhere. Controls vertical placement and the smile arc the incisal
+   * edges follow.
    */
   lipCurve: Vec2[];
   /**

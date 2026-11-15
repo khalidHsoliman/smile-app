@@ -193,5 +193,5 @@ export function useSnapshots() {
     }
   }, [photos, smileSize, fit, frame, refs, design, lipBox, busy, snapshots.images]);
 
-  return { snapshots, generate, busy, error, lipBox, smileSize };
+  return { snapshots, generate, busy, error, lipBox, smileSize, fit, template };
 }

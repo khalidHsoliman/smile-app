@@ -388,6 +388,21 @@ body { margin: 0; }
   border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
 }
 
+/* --- measurements: Design step panel and report --- */
+
+.measurements { display: grid; gap: 0.4rem; }
+.measurements h2 { margin: 0; font-size: 0.875rem; font-weight: 600; }
+.measurements table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.measurements th,
+.measurements td { padding: 0.2rem 0.5rem 0.2rem 0; text-align: left; vertical-align: top; }
+.measurements th { font-weight: 500; }
+.measurements th[scope='col'] { padding-top: 0.6rem; font-weight: 600; opacity: 0.65; }
+
 /* --- report --- */
 
 .step--report { width: min(60rem, 100%); }
@@ -498,6 +513,15 @@ body { margin: 0; }
   /* Keep each before/after pair whole rather than split across a page break. */
   .report__pair { break-inside: avoid; page-break-inside: avoid; }
   .report__images img { border: 1px solid #ddd; background: #fff; }
+
+  /*
+   * The measurements block stays whole on one page. Plain block, like the
+   * pairs above, so the rule does not depend on how a browser fragments grid.
+   */
+  .measurements { display: block; break-inside: avoid; page-break-inside: avoid; }
+  .measurements h2 { margin-bottom: 0.4rem; }
+  .measurements table { break-inside: avoid; page-break-inside: avoid; }
+  .measurements th[scope='col'] { opacity: 1; color: #444; }
 
   @page { margin: 14mm; }
 }

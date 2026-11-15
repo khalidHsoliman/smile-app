@@ -20,7 +20,7 @@ Patient data leaves the browser only when the clinician saves or prints it:
 - **Save case** writes a `.smilecase` file holding the patient's photographs, their name, the
   clinic name and the whole design (see [Case files](#case-files)). The file is not encrypted.
 - **The report** PNG images contain the photographs; the PDF contains the photographs, the
-  patient and clinic names, the date and the teeth treated.
+  patient and clinic names, the date, the teeth treated and the measurements.
 
 Once downloaded, these files are the clinician's to keep safe, like any other patient record:
 wherever they are stored, copied, synced or sent, that is the clinician's responsibility, not
@@ -79,9 +79,10 @@ when it runs the tests -- `npm run typecheck` does, and it covers `test/`.
 
 The tests live in `test/`, mirroring `src/`, and cover code that imports no npm package:
 arch-run resolution, writing and reading case files (including broken, foreign and newer files),
-building the saved case from the app state, download file names, and the question asked before
-opening a case. The store, the React components and the face detection import npm packages and
-are not tested.
+building the saved case from the app state, download file names, the question asked before
+opening a case, and the [measurements](#measurements) -- how each is worked out and worded,
+including the sides on a mirrored photograph and the cases that show "-". The store, the React
+components and the face detection import npm packages and are not tested.
 
 ## Workflow
 
@@ -107,11 +108,47 @@ everything after it.
    nudged. The tooth shade is sampled from the photograph or chosen by hand. Teeth opacity,
    clipping to the mouth and blending into the photograph change how the design is shown. Undo
    and redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z) cover the template, the sliders and the per-tooth
-   adjustments.
-5. **Report.** Patient and clinic name, and before/after pairs: a close-up of the mouth, the
-   smile photograph and, when there is one, the retracted photograph -- with the design on it
-   when the photographs were aligned. Each image downloads as a PNG, named after the patient
-   (`jane-doe-smile-after.png`); **Export PDF** opens the browser's print dialog.
+   adjustments. A **Measurements** panel under the sliders shows head tilt, the midline and lip
+   line cants, the dental midline offset and the upper front teeth's proportions, following the
+   design as it changes (see [Measurements](#measurements)).
+5. **Report.** Patient and clinic name, the [measurements](#measurements) under the header, and
+   before/after pairs: a close-up of the mouth, the smile photograph and, when there is one, the
+   retracted photograph -- with the design on it when the photographs were aligned. Each image
+   downloads as a PNG, named after the patient (`jane-doe-smile-after.png`); **Export PDF** opens
+   the browser's print dialog; the measurements are kept together on one page.
+
+## Measurements
+
+The numbers a clinician reads off a design, shown in the Design step and in the report. They
+are worked out from the facial references and the design as it stands, per-tooth adjustments
+and nudges included, and are recomputed rather than saved.
+
+- **Head tilt** -- the line between the pupils, against the image horizontal.
+- **Midline cant** -- the facial midline, against the line at 90° to the pupil line.
+- **Lip line cant** -- the line between the two ends of the lip line (the mouth corners),
+  against the pupil line.
+- **Dental midline offset** -- how far the designed dental midline sits from the facial
+  midline. The dental midline is the point halfway between the inner edges of 11 and 21 at their
+  biting edge; the distance is measured along the pupil line, to the facial midline at the same
+  height. It is a **percentage of a central's width** -- the average width of 11 and 21 -- so
+  "9%" means the dental midline is off by 9% of a central incisor. Needs both 11 and 21.
+- **Central width : length**, **Lateral / central**, **Canine / central** -- the upper teeth,
+  each side on its own (11-13 and 21-23): the central's width against its length, and the
+  lateral's and canine's width as a percentage of the central's on the same side.
+
+Each tooth is measured with its own width and length as designed, ignoring its rotation. Only
+teeth the clinician selected count: teeth added to complete the arch, and the lower arch, do
+not.
+
+Angles show to 0.1°, everything else as whole percents. The direction is named by the patient's
+side -- "2.1°, patient's left side lower", "2.1°, lower end toward patient's left", "9%, toward
+patient's left" -- and a result that rounds to zero, "0.0°" or "0%", names no side. The side
+follows the **Left pupil** and **Right pupil** handles, not the image's left and right, so it
+stays the same on a mirrored photograph as long as each pupil handle is on the eye it names.
+
+A number that cannot be worked out -- a tooth that is not in the design, for example, or two
+handles on top of each other -- shows "-": with a short reason in the Design step, on its own in
+the report. Its row is always shown.
 
 ## Saving work
 
@@ -156,12 +193,14 @@ far, and refuses files with a newer version, asking for the app to be updated.
 ```
 src/
   domain/     pure, no npm packages, no React, no DOM, no store imports -- numbering, arch
-              runs, face frame, fitting, photo alignment, tooth edits, undo history
+              runs, face frame, fitting, photo alignment, tooth edits, undo history,
+              measurements
   state/      zustand store and cascade invalidation, workflow steps, autosave (IndexedDB),
               case files
   features/   one folder per workflow step, plus the tooth chart, zoom and pan, the demo case,
-              the step navigation and the Save case / Open case buttons. Drawing the photos,
-              reference handles and teeth as SVG happens here, in the step that shows them.
+              the step navigation, the Save case / Open case buttons, and the measurements
+              panel the Design step and the report share. Drawing the photos, reference
+              handles and teeth as SVG happens here, in the step that shows them.
   export/     report images (SVG to PNG) and download file names
   vision/     MediaPipe wrapper, landmark indices and their checks, photo alignment on the
               teeth, shade sampling

@@ -14,7 +14,7 @@ import {
   type Rect,
   type Vec2,
 } from '../../domain/geometry.js';
-import { isUpper } from '../../domain/teeth.js';
+import { isUpper, LOWER_CENTRALS, UPPER_CENTRALS } from '../../domain/teeth.js';
 import { ToothShading } from './ToothShading.js';
 import { luminanceOf, type ToothPalette } from '../../vision/sampleToothColor.js';
 
@@ -452,17 +452,28 @@ function blendFilter(
 /**
  * The measured width of one central incisor, in image pixels.
  *
- * The outlines are authored with the central at 1.0 wide, so the length of the
- * placement matrix's x column is that width in pixels. Auxiliary teeth are
- * skipped -- an injected anchor can be scaled to nothing.
+ * The outlines are authored with the central at 1.0 wide, so the length of a
+ * central's placement matrix x column is its width in pixels. Only a central
+ * will do: any other tooth's x column also carries its tooth proportion,
+ * foreshortening and edits, so the grain and blur would follow whichever tooth
+ * came first.
+ *
+ * A shown central is preferred. When none is shown, the hidden one is used:
+ * every arch run contains a central (see archRun.ts), placed like any other
+ * tooth, so the texture does not change with what happens to be selected.
+ * Zero only when nothing is placed at all.
  */
 function centralWidthInPixels(
   placed: readonly { tooth: PlacedTooth; transform: Matrix2D }[],
 ): number {
-  for (const { tooth, transform } of placed) {
-    if (tooth.auxiliary) continue;
-    const width = Math.hypot(transform.a, transform.b);
-    if (width > 0) return width;
+  const centrals: readonly number[] = [...UPPER_CENTRALS, ...LOWER_CENTRALS];
+  const candidates = placed.filter(({ tooth }) => centrals.includes(tooth.universal));
+  for (const hidden of [false, true]) {
+    for (const { tooth, transform } of candidates) {
+      if (tooth.auxiliary !== hidden) continue;
+      const width = Math.hypot(transform.a, transform.b);
+      if (width > 0) return width;
+    }
   }
   return 0;
 }
