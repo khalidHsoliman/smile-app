@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { caseFileName, patientSlug, reportImageFileName } from '../../src/export/fileNames.js';
+import {
+  caseFileName,
+  localDay,
+  measurementsFileName,
+  patientSlug,
+  reportImageFileName,
+} from '../../src/export/fileNames.js';
 
 const utf8 = (s: string) => new TextEncoder().encode(s).length;
 
@@ -91,4 +97,21 @@ test('case file: just the date when there is no usable name', () => {
   assert.equal(caseFileName('', day), '2025-11-14.smilecase');
   assert.equal(caseFileName('   ', day), '2025-11-14.smilecase');
   assert.equal(caseFileName('?!', day), '2025-11-14.smilecase');
+});
+
+test('measurements file: named like the report images, ending in .csv', () => {
+  assert.equal(measurementsFileName('Jane Doe'), 'jane-doe-measurements.csv');
+  assert.equal(measurementsFileName('José Müller'), 'josé-müller-measurements.csv');
+  assert.equal(measurementsFileName('محمد علي'), 'محمد-علي-measurements.csv');
+  assert.equal(measurementsFileName(''), 'patient-measurements.csv');
+  assert.equal(measurementsFileName('***'), 'patient-measurements.csv');
+  assert.equal(
+    measurementsFileName('Jane Doe').replace(/-measurements\.csv$/, ''),
+    reportImageFileName('Jane Doe', 'x').replace(/-x\.png$/, ''),
+  );
+});
+
+test('the local day, as case files and the measurements file write it', () => {
+  assert.equal(localDay(new Date(2025, 10, 14, 23, 59)), '2025-11-14');
+  assert.equal(localDay(new Date(2026, 0, 5, 0, 0)), '2026-01-05');
 });

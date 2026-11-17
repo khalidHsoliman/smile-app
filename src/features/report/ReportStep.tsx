@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '../../state/store.js';
 import { toFDI } from '../../domain/teeth.js';
 import { downloadBlob } from '../../export/snapshot.js';
-import { reportImageFileName } from '../../export/fileNames.js';
+import { measurementsFileName, reportImageFileName } from '../../export/fileNames.js';
+import { measurementsFile } from '../../export/measurementsFile.js';
 import { useSnapshots, type SnapshotKind } from './useSnapshots.js';
 import { Measurements } from '../measurements/Measurements.js';
 
@@ -25,6 +26,7 @@ export function ReportStep() {
   const clinicName = useAppStore((s) => s.report.clinicName);
   const setReportField = useAppStore((s) => s.setReportField);
   const refs = useAppStore((s) => s.face.refs);
+  const pupilDistanceMm = useAppStore((s) => s.pupilDistanceMm);
 
   const { snapshots, generate, busy, error, fit, template } = useSnapshots();
   const [generated, setGenerated] = useState(false);
@@ -51,6 +53,21 @@ export function ReportStep() {
   const save = (kind: SnapshotKind, label: string) => {
     const blob = snapshots.blobs[kind];
     if (blob) downloadBlob(blob, reportImageFileName(patientName, label));
+  };
+
+  // What the report shows, made when the button is pressed.
+  const saveMeasurements = () => {
+    const file = measurementsFile({
+      patientName,
+      clinicName,
+      date: new Date(),
+      selectedTeeth,
+      refs,
+      teeth: fit?.teeth ?? null,
+      template,
+      pupilDistanceMm,
+    });
+    downloadBlob(file, measurementsFileName(patientName));
   };
 
   return (
@@ -107,7 +124,9 @@ export function ReportStep() {
           refs={refs}
           teeth={fit?.teeth ?? null}
           template={template}
+          pupilDistanceMm={pupilDistanceMm}
           where="report"
+          onDownload={saveMeasurements}
         />
 
         {/*

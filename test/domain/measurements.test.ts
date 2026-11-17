@@ -6,10 +6,16 @@ import {
   formatMidline,
   formatOffset,
   formatPercent,
+  formatSize,
+  formatSizeBasis,
   formatTilt,
+  isUsablePupilDistance,
+  parsePupilDistance,
   toothMeasurements,
+  toothSizes,
   type FaceMeasurements,
   type ToothMeasurements,
+  type ToothSizes,
   type Where,
 } from '../../src/domain/measurements.js';
 import type { FacialReferences } from '../../src/domain/faceFrame.js';
@@ -407,7 +413,7 @@ test('a mirrored photo names the side by the handles', () => {
 });
 
 test('midline offset rounds to whole percents, and 0% names no side', () => {
-  const at = (fraction: number) => formatOffset({ ok: true, value: { fraction, side: 'left' } }, 'panel');
+  const at = (fraction: number) => formatOffset({ ok: true, value: { fraction, mm: null, side: 'left' } }, 'panel');
   assert.equal(at(0.004), '0%');
   assert.equal(at(0.006), "1%, toward patient's left");
   assert.equal(at(0.094), "9%, toward patient's left");
@@ -448,4 +454,244 @@ test('references the design cannot be placed against: "-" with the reason', () =
     }),
     '- (midline runs along the pupil line)',
   );
+});
+
+// --- sizes in mm ------------------------------------------------------------------
+
+/**
+ * A level face at 0.1 mm per pixel with a 62 mm pupil distance: the pupils are
+ * 620 px apart. The nasal wings are 340 px apart, so a face unit is 34 mm and
+ * a central at scale 1 is 0.25 x 34 = 8.5 mm wide.
+ */
+function calibratedFace(): FacialReferences {
+  return {
+    ...levelFace(),
+    rightPupil: vec(190, 300),
+    leftPupil: vec(810, 300),
+    rightAla: vec(330, 450),
+    leftAla: vec(670, 450),
+  };
+}
+
+const PD = 62;
+
+function showSizes(m: ToothSizes, where: Where = 'panel') {
+  const side = (s: ToothSizes['left']) => [
+    formatSize(s.central, where),
+    formatSize(s.lateral, where),
+    formatSize(s.canine, where),
+  ];
+  return { right: side(m.right), left: side(m.left) };
+}
+
+const near = (actual: number, expected: number) =>
+  assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} is not ${expected}`);
+
+test('the default design in mm: a central of 8.5 x 10.6, neighbours at their ratios', () => {
+  const m = toothSizes(calibratedFace(), design(ANTERIOR_SIX), natural, PD);
+  for (const side of [m.right, m.left]) {
+    assert.ok(side.central.ok && side.lateral.ok && side.canine.ok);
+    near(side.central.value.width, 8.5);
+    near(side.central.value.length, 8.5 / 0.8);
+    // The same widths the ratio rows divide: 70% and 49% of the central.
+    near(side.lateral.value.width, 8.5 * 0.7);
+    near(side.canine.value.width, 8.5 * 0.49);
+  }
+  assert.deepEqual(showSizes(m).left, ['8.5 × 10.6', '5.9 × 10.3', '4.2 × 10.7']);
+  assert.deepEqual(showSizes(m, 'report'), showSizes(m));
+});
+
+test('sizes follow the scale slider, which the ratios do not', () => {
+  const m = toothSizes(calibratedFace(), design(ANTERIOR_SIX, { scale: 1.2 }), natural, PD);
+  assert.equal(formatSize(m.left.central, 'panel'), '10.2 × 12.8');
+  assert.equal(formatSize(m.right.central, 'panel'), '10.2 × 12.8');
+});
+
+test('sizes are in proportion to the pupil distance entered', () => {
+  const m = toothSizes(calibratedFace(), design(ANTERIOR_SIX), natural, 70);
+  assert.ok(m.left.central.ok);
+  near(m.left.central.value.width, (8.5 * 70) / 62);
+});
+
+test('sizes do not depend on the photo resolution, a tilted head or a mirrored photo', () => {
+  const teeth = design(ANTERIOR_SIX);
+  const expected = showSizes(toothSizes(calibratedFace(), teeth, natural, PD));
+  const doubled = mapRefs(calibratedFace(), (p) => vec(p.x * 2, p.y * 2));
+  assert.deepEqual(showSizes(toothSizes(doubled, teeth, natural, PD)), expected);
+  assert.deepEqual(showSizes(toothSizes(rotated(calibratedFace(), 8), teeth, natural, PD)), expected);
+  assert.deepEqual(showSizes(toothSizes(mirrored(calibratedFace()), teeth, natural, PD)), expected);
+});
+
+test('a narrow arch narrows the lateral and canine as seen from the front, not their length', () => {
+  const normal = toothSizes(calibratedFace(), design(ANTERIOR_SIX), natural, PD).left;
+  const narrow = toothSizes(calibratedFace(), design(ANTERIOR_SIX, { archWidth: 0.8 }), natural, PD).left;
+  assert.equal(formatSize(narrow.central, 'panel'), formatSize(normal.central, 'panel'));
+  assert.ok(normal.lateral.ok && narrow.lateral.ok && normal.canine.ok && narrow.canine.ok);
+  assert.ok(narrow.lateral.value.width < normal.lateral.value.width);
+  assert.ok(narrow.canine.value.width < normal.canine.value.width);
+  near(narrow.lateral.value.length, normal.lateral.value.length);
+  near(narrow.canine.value.length, normal.canine.value.length);
+});
+
+test('a per-tooth edit shows in mm on its own side only', () => {
+  // 21 (universal 9) 10% wider and 20% longer: 9.35 x 12.75.
+  const edits = editTooth({}, 9, { ...IDENTITY_EDIT, scaleX: 1.1, scaleY: 1.2 }, false);
+  const m = toothSizes(calibratedFace(), design(ANTERIOR_SIX, {}, edits), natural, PD);
+  assert.equal(formatSize(m.right.central, 'panel'), '8.5 × 10.6');
+  assert.ok(m.left.central.ok);
+  near(m.left.central.value.width, 9.35);
+  near(m.left.central.value.length, 12.75);
+});
+
+test('sizes round to 0.1 mm', () => {
+  const at = (width: number, length: number) => formatSize({ ok: true, value: { width, length } }, 'panel');
+  assert.equal(at(8.54, 10.04), '8.5 × 10.0');
+  assert.equal(at(8.56, 9.96), '8.6 × 10.0');
+  assert.equal(at(0.04, 12), '0.0 × 12.0');
+});
+
+test('no pupil distance: every size is "-", asking for it in the panel', () => {
+  const none = Array(3).fill('- (enter the pupil distance)');
+  assert.deepEqual(showSizes(toothSizes(calibratedFace(), design(ANTERIOR_SIX), natural, null)), {
+    right: none,
+    left: none,
+  });
+  assert.deepEqual(showSizes(toothSizes(calibratedFace(), design(ANTERIOR_SIX), natural, null), 'report'), {
+    right: ['-', '-', '-'],
+    left: ['-', '-', '-'],
+  });
+});
+
+test('a pupil distance outside 40-80 mm is not used', () => {
+  for (const pd of [39.9, 80.1, 0, -62, NaN, Infinity]) {
+    const m = toothSizes(calibratedFace(), design(ANTERIOR_SIX), natural, pd);
+    assert.equal(formatSize(m.left.central, 'panel'), '- (pupil distance must be 40–80 mm)');
+  }
+  for (const pd of [40, 80]) {
+    assert.ok(toothSizes(calibratedFace(), design(ANTERIOR_SIX), natural, pd).left.central.ok);
+  }
+});
+
+test('a tooth the design lacks says so, before asking for the pupil distance', () => {
+  assert.deepEqual(showSizes(toothSizes(calibratedFace(), design([7, 8, 9, 10]), natural, null)).left, [
+    '- (enter the pupil distance)',
+    '- (enter the pupil distance)',
+    '- (23 not in the design)',
+  ]);
+  assert.deepEqual(showSizes(toothSizes(calibratedFace(), design([6, 7]), natural, PD)).left, [
+    '- (21 not in the design)',
+    '- (22 not in the design)',
+    '- (23 not in the design)',
+  ]);
+  const noDesign = Array(3).fill('- (no design yet)');
+  assert.deepEqual(showSizes(toothSizes(calibratedFace(), null, natural, null)).right, noDesign);
+  assert.deepEqual(showSizes(toothSizes(calibratedFace(), design(ANTERIOR_SIX), undefined, PD)).right, noDesign);
+});
+
+test('references sizes cannot be worked out from: "-" with the reason', () => {
+  const teeth = design(ANTERIOR_SIX);
+  const broken = (refs: FacialReferences | null) =>
+    formatSize(toothSizes(refs, teeth, natural, PD).left.central, 'panel');
+  assert.equal(broken(null), '- (no facial references)');
+  const pupils = calibratedFace();
+  pupils.leftPupil = pupils.rightPupil;
+  assert.equal(broken(pupils), '- (pupils on top of each other)');
+  const wings = calibratedFace();
+  wings.leftAla = wings.rightAla;
+  assert.equal(broken(wings), '- (nasal wings on top of each other)');
+});
+
+// --- dental midline offset in mm ----------------------------------------------------
+
+const midlineMm = (refs: FacialReferences, teeth: ReturnType<typeof design>, pd: number | null) =>
+  formatOffset(dentalMidlineOffset(refs, teeth, natural, pd), 'panel');
+
+test('the midline offset adds mm when there is a pupil distance', () => {
+  // 0.0225 face units x 34 mm = 0.765 mm, 9% of an 8.5 mm central.
+  const teeth = design(ANTERIOR_SIX, {}, nudged(ANTERIOR_SIX, 0.0225));
+  const m = dentalMidlineOffset(calibratedFace(), teeth, natural, PD);
+  assert.ok(m.ok && m.value.mm !== null);
+  near(m.value.mm, 0.765);
+  assert.equal(formatOffset(m, 'panel'), "9% (0.8 mm), toward patient's left");
+  assert.equal(formatOffset(m, 'report'), "9% (0.8 mm), toward patient's left");
+  assert.equal(midlineMm(calibratedFace(), design(ANTERIOR_SIX), PD), '0% (0.0 mm)');
+});
+
+test('without a usable pupil distance the midline offset shows its percent only', () => {
+  const teeth = design(ANTERIOR_SIX, {}, nudged(ANTERIOR_SIX, 0.0225));
+  for (const pd of [null, 30, NaN]) {
+    assert.equal(midlineMm(calibratedFace(), teeth, pd), "9%, toward patient's left");
+  }
+  // The pupil distance is optional, so existing callers read as before.
+  assert.equal(midline(calibratedFace(), teeth), "9%, toward patient's left");
+});
+
+test('the midline offset in mm names the same side on a mirrored or tilted photo', () => {
+  const toLeft = design(ANTERIOR_SIX, {}, nudged(ANTERIOR_SIX, 0.0225));
+  const toImageLeft = design(ANTERIOR_SIX, {}, nudged(ANTERIOR_SIX, -0.0225));
+  assert.equal(midlineMm(mirrored(calibratedFace()), toImageLeft, PD), "9% (0.8 mm), toward patient's left");
+  assert.equal(midlineMm(rotated(calibratedFace(), -6), toLeft, PD), "9% (0.8 mm), toward patient's left");
+});
+
+test('the midline offset names a side unless both the percent and the mm round to zero', () => {
+  const at = (fraction: number, mm: number) =>
+    formatOffset({ ok: true, value: { fraction, mm, side: 'right' } }, 'panel');
+  assert.equal(at(0.004, 0.04), '0% (0.0 mm)');
+  assert.equal(at(0.004, 0.06), "0% (0.1 mm), toward patient's right");
+  assert.equal(at(0.006, 0.04), "1% (0.0 mm), toward patient's right");
+  assert.equal(at(0.094, 0.76), "9% (0.8 mm), toward patient's right");
+});
+
+test('the midline offset keeps its reasons with a pupil distance entered', () => {
+  assert.equal(midlineMm(calibratedFace(), design([7, 8, 10]), PD), '- (21 not in the design)');
+  const pupils = calibratedFace();
+  pupils.leftPupil = pupils.rightPupil;
+  assert.equal(midlineMm(pupils, design(ANTERIOR_SIX), PD), '- (pupils on top of each other)');
+});
+
+// --- the report's line on what the mm rest on -----------------------------------------
+
+test('the report names the pupil distance the sizes come from, or nothing without one', () => {
+  assert.equal(formatSizeBasis(62), 'Sizes in mm from a pupil distance of 62.0 mm.');
+  assert.equal(formatSizeBasis(63.25), 'Sizes in mm from a pupil distance of 63.3 mm.');
+  assert.equal(formatSizeBasis(40), 'Sizes in mm from a pupil distance of 40.0 mm.');
+  for (const pd of [null, 39.9, 80.1, NaN]) assert.equal(formatSizeBasis(pd), null);
+});
+
+test('usable pupil distances are 40 to 80 mm, ends included', () => {
+  for (const mm of [40, 62, 63.5, 80]) assert.equal(isUsablePupilDistance(mm), true, String(mm));
+  for (const mm of [39.99, 80.01, 0, -62, 6.2, NaN, Infinity, -Infinity]) {
+    assert.equal(isUsablePupilDistance(mm), false, String(mm));
+  }
+});
+
+test('the pupil distance reads with a decimal point or comma, and an optional mm', () => {
+  const cases: Array<[string, number | null]> = [
+    ['', null],
+    ['   ', null],
+    ['62', 62],
+    ['62.5', 62.5],
+    ['62,5', 62.5],
+    [' 62.5 ', 62.5],
+    ['62mm', 62],
+    ['62 mm', 62],
+    ['62,5 MM', 62.5],
+    ['62.', 62],
+    ['40', 40],
+    ['80', 80],
+    ['080', 80],
+  ];
+  for (const [text, expected] of cases) {
+    assert.deepEqual(parsePupilDistance(text), { ok: true, value: expected }, JSON.stringify(text));
+  }
+});
+
+test('a pupil distance that is not 40-80 mm, or not a plain number, says so', () => {
+  const reason = 'Enter a number from 40 to 80 mm.';
+  for (const text of [
+    '39.9', '80.1', '6.2', '620', '0', '-62', '+62', '6 2', '62.5.1', '62,5,1', '1e2', '0x40',
+    'Infinity', 'NaN', 'abc', '62 cm', '.5', 'mm', '62 mm mm',
+  ]) {
+    assert.deepEqual(parsePupilDistance(text), { ok: false, reason }, JSON.stringify(text));
+  }
 });

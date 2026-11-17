@@ -64,6 +64,7 @@ function fullCase(): CaseContent {
       mirrorMode: true,
     },
     report: { patientName: 'Jane Doe', clinicName: 'Bright Smiles' },
+    pupilDistanceMm: 63.5,
   };
 }
 
@@ -115,6 +116,7 @@ test('a minimal case round-trips: no photos, no references, no edits', async () 
     design: { ...fullCase().design, templateId: null, edits: {} },
     matching: { pairs: [], nudge: { x: 0, y: 0 }, refinement: null, confirmed: false },
     report: { patientName: '', clinicName: '' },
+    pupilDistanceMm: null,
   };
   const opened = await readCaseFile(await writeCaseFile(minimal, SAVED_AT));
   assert.deepEqual(opened.content, minimal);
@@ -277,6 +279,16 @@ const DAMAGE: Array<[string, (json: any) => void, string]> = [
   ['edit incomplete', (j) => { delete j.case.design.edits['8'].scaleY; }, 'case.design.edits.8.scaleY'],
   ['opacity missing', (j) => { delete j.case.design.teethOpacity; }, 'case.design.teethOpacity'],
   ['photo blend not true/false', (j) => { j.case.design.photoBlend = 1; }, 'case.design.photoBlend'],
+  ['no pupil distance in a version 2 file', (j) => { delete j.case.pupilDistanceMm; }, 'case.pupilDistanceMm'],
+  ['pupil distance as text', (j) => { j.case.pupilDistanceMm = '62'; }, 'case.pupilDistanceMm'],
+  ['pupil distance true/false', (j) => { j.case.pupilDistanceMm = true; }, 'case.pupilDistanceMm'],
+  ['pupil distance a list', (j) => { j.case.pupilDistanceMm = [62]; }, 'case.pupilDistanceMm'],
+  ['pupil distance an object', (j) => { j.case.pupilDistanceMm = { mm: 62 }; }, 'case.pupilDistanceMm'],
+  ['pupil distance below 40 mm', (j) => { j.case.pupilDistanceMm = 39.9; }, 'case.pupilDistanceMm'],
+  ['pupil distance above 80 mm', (j) => { j.case.pupilDistanceMm = 80.1; }, 'case.pupilDistanceMm'],
+  ['pupil distance zero', (j) => { j.case.pupilDistanceMm = 0; }, 'case.pupilDistanceMm'],
+  ['pupil distance negative', (j) => { j.case.pupilDistanceMm = -62; }, 'case.pupilDistanceMm'],
+  ['pupil distance in cm', (j) => { j.case.pupilDistanceMm = 6.2; }, 'case.pupilDistanceMm'],
   ['photo not an object', (j) => { j.case.photos.smile = 'data:image/jpeg;base64,...'; }, 'case.photos.smile'],
   ['photo of an unsupported type', (j) => { j.case.photos.smile.type = 'text/html'; }, 'case.photos.smile.type'],
   ['photo without a type', (j) => { delete j.case.photos.smile.type; }, 'case.photos.smile.type'],
@@ -302,4 +314,86 @@ test('damage messages are meant for the user', async () => {
     readCaseFile(await alteredFile((j) => { j.case.design.params.scale = 'big'; })),
     { message: 'This case file is damaged and cannot be opened (case.design.params.scale is missing or not a number).' },
   );
+});
+
+// --- the pupil distance and version 1 files ---------------------------------------------
+
+test('this app writes version 2, the version that added the pupil distance', async () => {
+  assert.equal(CASE_FILE_VERSION, 2);
+  const json = JSON.parse(await (await writeCaseFile(fullCase(), SAVED_AT)).text());
+  assert.equal(json.version, 2);
+  assert.equal(json.case.pupilDistanceMm, 63.5);
+});
+
+test('the pupil distance round-trips, entered or not, at either end of the range', async () => {
+  for (const pupilDistanceMm of [63.5, 40, 80, null]) {
+    const content: CaseContent = { ...fullCase(), photos: {}, pupilDistanceMm };
+    const text = await (await writeCaseFile(content, SAVED_AT)).text();
+    assert.equal(JSON.parse(text).case.pupilDistanceMm, pupilDistanceMm);
+    const opened = await readCaseFile(new Blob([text]));
+    assert.equal(opened.content.pupilDistanceMm, pupilDistanceMm);
+    assert.deepEqual(opened.content, content);
+  }
+});
+
+/** A file as version 1 of the app wrote it: version 1, no pupil distance. */
+const versionOneFile = (mutate: (json: any) => void = () => {}) =>
+  alteredFile((json) => {
+    json.version = 1;
+    delete json.case.pupilDistanceMm;
+    mutate(json);
+  });
+
+test('a version 1 file opens whole, with no pupil distance', async () => {
+  const opened = await readCaseFile(await versionOneFile());
+  assert.equal(opened.savedAt, SAVED_AT.getTime());
+  assert.equal(opened.content.pupilDistanceMm, null);
+  assert.deepEqual(
+    await comparable(opened.content),
+    await comparable({ ...fullCase(), pupilDistanceMm: null }),
+  );
+});
+
+test('a version 1 file opened and saved again becomes version 2, still with no distance', async () => {
+  const opened = await readCaseFile(await versionOneFile());
+  const json = JSON.parse(await (await writeCaseFile(opened.content, SAVED_AT)).text());
+  assert.equal(json.version, 2);
+  assert.equal(json.case.pupilDistanceMm, null);
+});
+
+test('a pupil distance in a version 1 file is not the app\'s, and is dropped like any unknown field', async () => {
+  for (const stray of [70, 'abc', 500]) {
+    const opened = await readCaseFile(await versionOneFile((json) => { json.case.pupilDistanceMm = stray; }));
+    assert.equal(opened.content.pupilDistanceMm, null);
+  }
+});
+
+test('a version 1 file is still checked in full', async () => {
+  await assertRefused(
+    await versionOneFile((json) => { json.case.design.params.scale = 'big'; }),
+    'damaged',
+    'case.design.params.scale',
+  );
+  await assertRefused(await versionOneFile((json) => { json.case = 'nothing'; }), 'damaged', 'case');
+});
+
+test('a bad pupil distance is refused with a message for the user', async () => {
+  await assert.rejects(
+    readCaseFile(await alteredFile((j) => { j.case.pupilDistanceMm = 95; })),
+    { message: 'This case file is damaged and cannot be opened (case.pupilDistanceMm is not between 40 and 80 mm).' },
+  );
+  await assert.rejects(
+    readCaseFile(await alteredFile((j) => { j.case.pupilDistanceMm = '62'; })),
+    { message: 'This case file is damaged and cannot be opened (case.pupilDistanceMm is missing or not a number).' },
+  );
+});
+
+test('a pupil distance a file cannot carry is refused on saving, not written', async () => {
+  for (const pupilDistanceMm of [NaN, Infinity, 30, 120]) {
+    await assert.rejects(
+      writeCaseFile({ ...fullCase(), pupilDistanceMm }, SAVED_AT),
+      (e: unknown) =>
+        e instanceof CaseFileError && e.problem === 'cannot-save' && e.message.includes('case.pupilDistanceMm'),
+    );
+  }
 });

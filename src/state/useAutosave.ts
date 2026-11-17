@@ -47,6 +47,7 @@ function fingerprint(s: ReturnType<typeof useAppStore.getState>): string {
     s.design.photoBlend,
     s.design.mirrorMode,
     s.report,
+    s.pupilDistanceMm,
   ]);
 }
 

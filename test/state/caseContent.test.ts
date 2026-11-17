@@ -53,6 +53,7 @@ function appState(): AppState {
     },
     view: { transform: { a: 2, b: 0, c: 0, d: 2, e: 0, f: 0 } },
     report: { patientName: 'Jane Doe', clinicName: 'Clinic' },
+    pupilDistanceMm: 61.5,
     paramDragActive: false,
     undoBatchDepth: 0,
     pendingUndo: null,
@@ -81,6 +82,7 @@ test('the case holds the inputs, and nothing derived or momentary', async () => 
       mirrorMode: false,
     },
     report: s.report,
+    pupilDistanceMm: 61.5,
   });
 
   assert.deepEqual(new Uint8Array(await photos.smile!.blob.arrayBuffer()), JPEG);
@@ -106,4 +108,13 @@ test('what the app builds, a file carries unchanged', async () => {
   assert.deepEqual(rest, expected);
   assert.deepEqual(new Uint8Array(await photos.smile!.blob.arrayBuffer()), JPEG);
   assert.deepEqual(new Uint8Array(await photos.retracted!.blob.arrayBuffer()), PNG);
+});
+
+test('a pupil distance not entered is saved as null, not left out', async () => {
+  const s = { ...appState(), pupilDistanceMm: null } as AppState;
+  const { content } = await buildCaseContent(s);
+  assert.ok('pupilDistanceMm' in content);
+  assert.equal(content.pupilDistanceMm, null);
+  const opened = await readCaseFile(await writeCaseFile(content));
+  assert.equal(opened.content.pupilDistanceMm, null);
 });

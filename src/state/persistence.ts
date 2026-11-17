@@ -74,6 +74,12 @@ export interface StoredCase {
     mirrorMode: boolean;
   };
   report: { patientName: string; clinicName: string };
+  /**
+   * The patient's pupil distance in mm, 40-80, that sizes in mm are worked
+   * out from; null when not entered. Optional: absent in cases autosaved
+   * before sizes in mm existed.
+   */
+  pupilDistanceMm?: number | null;
 }
 
 interface SmileDb extends DBSchema {

@@ -30,6 +30,13 @@
  *    percents. A level or centred result is "0.0°" or "0%" with no side.
  *  - What cannot be worked out is "-": with a short reason in the panel, on its
  *    own in the report.
+ *  - Sizes in mm come from the patient's pupil distance, entered by the
+ *    clinician (40-80 mm), against the pupil handles: mm per pixel is the one
+ *    over the other. Teeth are measured as for the ratios, so a lateral's or
+ *    canine's width is the width seen from the front. No correction for depth:
+ *    the teeth sit in front of the pupils, so they read a few percent large.
+ *    Shown to 0.1 mm. Without a pupil distance the offset shows its percent
+ *    only, and the sizes are "-".
  *
  * Pure: no React, no store, no DOM.
  */
@@ -77,6 +84,8 @@ export interface Angle {
  */
 export interface Offset {
   fraction: number;
+  /** The same distance in mm; null without a usable pupil distance. */
+  mm: number | null;
   side: Side | null;
 }
 
@@ -97,6 +106,27 @@ export interface ToothMeasurements {
   right: SideTeethMeasurements;
   left: SideTeethMeasurements;
 }
+
+/** A designed tooth's width and length, in mm. */
+export interface SizeMm {
+  width: number;
+  length: number;
+}
+
+/** One side of the upper arch, in mm. */
+export interface SideToothSizes {
+  central: Measurement<SizeMm>;
+  lateral: Measurement<SizeMm>;
+  canine: Measurement<SizeMm>;
+}
+
+export interface ToothSizes {
+  right: SideToothSizes;
+  left: SideToothSizes;
+}
+
+/** The pupil distances, in mm, that sizes can be worked out from. */
+export const PUPIL_DISTANCE_MM = { min: 40, max: 80 } as const;
 
 /** Where a value is shown: the panel gives reasons, the report does not. */
 export type Where = 'panel' | 'report';
@@ -211,6 +241,70 @@ export function faceMeasurements(refs: FacialReferences | null): FaceMeasurement
   };
 }
 
+// --- scale ----------------------------------------------------------------------
+
+/** The reason a size in mm is "-" when no pupil distance was entered. */
+export const NO_PUPIL_DISTANCE = 'enter the pupil distance';
+
+/**
+ * True for a pupil distance sizes can be worked out from: 40-80 mm. NaN is
+ * not. The store and the case file keep only these, or null.
+ */
+export const isUsablePupilDistance = (mm: number): boolean =>
+  mm >= PUPIL_DISTANCE_MM.min && mm <= PUPIL_DISTANCE_MM.max;
+
+/** Digits with at most one decimal point or comma, and an optional "mm". */
+const PUPIL_DISTANCE_TEXT = /^(\d+(?:[.,]\d*)?)\s*(?:mm)?$/i;
+
+/**
+ * What the clinician typed as the pupil distance: null for nothing, the
+ * number of mm, or why it cannot be used. "62", "62.5", "62,5" (a decimal
+ * comma) and "62 mm" all read; spaces around it are ignored.
+ */
+export function parsePupilDistance(text: string): Measurement<number | null> {
+  const trimmed = text.trim();
+  if (trimmed === '') return ok(null);
+  const match = PUPIL_DISTANCE_TEXT.exec(trimmed);
+  const mm = match ? Number(match[1]!.replace(',', '.')) : NaN;
+  if (!isUsablePupilDistance(mm)) {
+    return fail(`Enter a number from ${PUPIL_DISTANCE_MM.min} to ${PUPIL_DISTANCE_MM.max} mm.`);
+  }
+  return ok(mm);
+}
+
+/**
+ * Millimetres per image pixel: the patient's pupil distance over the distance
+ * between the pupil handles.
+ */
+function mmPerPixel(
+  refs: FacialReferences | null,
+  pupilDistanceMm: number | null,
+): Measurement<number> {
+  if (pupilDistanceMm === null) return fail(NO_PUPIL_DISTANCE);
+  if (!isUsablePupilDistance(pupilDistanceMm)) {
+    return fail(`pupil distance must be ${PUPIL_DISTANCE_MM.min}–${PUPIL_DISTANCE_MM.max} mm`);
+  }
+  if (!refs) return fail('no facial references');
+  const pixels = distance(refs.leftPupil, refs.rightPupil);
+  if (pixels < EPSILON) return fail('pupils on top of each other');
+  return ok(pupilDistanceMm / pixels);
+}
+
+/**
+ * Millimetres per face unit. A face unit is the distance between the nasal
+ * wing handles, in pixels -- the face frame's scale.
+ */
+function mmPerFaceUnit(
+  refs: FacialReferences | null,
+  pupilDistanceMm: number | null,
+): Measurement<number> {
+  const perPixel = mmPerPixel(refs, pupilDistanceMm);
+  if (!perPixel.ok || !refs) return perPixel;
+  const interAlar = distance(refs.leftAla, refs.rightAla);
+  if (interAlar < EPSILON) return fail('nasal wings on top of each other');
+  return ok(perPixel.value * interAlar);
+}
+
 // --- teeth --------------------------------------------------------------------
 
 /** Upper central, lateral and canine on each side (FDI 11-13 and 21-23). */
@@ -301,6 +395,38 @@ export function toothMeasurements(
   };
 }
 
+/**
+ * The upper central, lateral and canine on each side, in mm: each tooth's own
+ * width and length as the ratios measure them, scaled by the pupil distance.
+ *
+ * A tooth the design lacks gives the same reason as its ratio row, before
+ * anything about the pupil distance: entering one would not help.
+ */
+export function toothSizes(
+  refs: FacialReferences | null,
+  teeth: readonly PlacedTooth[] | null,
+  template: Template | undefined,
+  pupilDistanceMm: number | null,
+): ToothSizes {
+  const scale = mmPerFaceUnit(refs, pupilDistanceMm);
+
+  const sizeMm = (universal: Universal): Measurement<SizeMm> => {
+    if (!teeth || !template) return fail('no design yet');
+    const size = sizeOf(universal, teeth, template);
+    if (!size.ok) return size;
+    if (!scale.ok) return scale;
+    return ok({ width: size.value.width * scale.value, length: size.value.length * scale.value });
+  };
+
+  const side = (s: Side): SideToothSizes => ({
+    central: sizeMm(UPPER_ANTERIORS[s].central),
+    lateral: sizeMm(UPPER_ANTERIORS[s].lateral),
+    canine: sizeMm(UPPER_ANTERIORS[s].canine),
+  });
+
+  return { right: side('right'), left: side('left') };
+}
+
 // --- dental midline -------------------------------------------------------------
 
 /**
@@ -312,7 +438,8 @@ export function toothMeasurements(
  * ignored. It is taken into the photograph with the same face frame the design
  * is drawn with. The distance is along the pupil line, to the point on the
  * facial midline handle line at the same height (measured square to the pupil
- * line), and is expressed as a share of the average width of 11 and 21.
+ * line), and is expressed as a share of the average width of 11 and 21 --
+ * and in mm too, when a usable pupil distance is given.
  *
  * Both centrals must be shown.
  */
@@ -320,6 +447,7 @@ export function dentalMidlineOffset(
   refs: FacialReferences | null,
   teeth: readonly PlacedTooth[] | null,
   template: Template | undefined,
+  pupilDistanceMm: number | null = null,
 ): Measurement<Offset> {
   if (!teeth || !template) return fail('no design yet');
   if (!refs) return fail('no facial references');
@@ -364,49 +492,106 @@ export function dentalMidlineOffset(
 
   const offset = dot(sub(dental, facial), u);
   const centralWidth = ((r.width + l.width) / 2) * frame.scale;
-  return ok({ fraction: Math.abs(offset) / centralWidth, side: sideOf(offset) });
+  const perPixel = mmPerPixel(refs, pupilDistanceMm);
+  return ok({
+    fraction: Math.abs(offset) / centralWidth,
+    mm: perPixel.ok ? Math.abs(offset) * perPixel.value : null,
+    side: sideOf(offset),
+  });
 }
 
 // --- formatting ----------------------------------------------------------------
+//
+// The numbers and words as shown. The report and the measurements file both
+// use these, so the two cannot round a number or name a side differently.
+
+/** An angle rounded to 0.1 degree, without the unit: "2.1". */
+export const degreesText = (degrees: number): string => (Math.round(degrees * 10) / 10).toFixed(1);
+
+/** A fraction as a whole percent, without the unit: 0.094 is "9". */
+export const percentText = (fraction: number): string => String(Math.round(fraction * 100));
+
+/** A length rounded to 0.1 mm, without the unit: "8.5". */
+export const mmText = (mm: number): string => (Math.round(mm * 10) / 10).toFixed(1);
+
+/**
+ * The side an angle is shown with. Rounded first, so a value that shows as
+ * 0.0 is level and names no side, even when a hair off zero.
+ */
+export const angleSideShown = (angle: Angle): Side | null =>
+  Number(degreesText(angle.degrees)) === 0 ? null : angle.side;
+
+/** The side an offset is shown with: none when everything shown rounds to zero. */
+export function offsetSideShown(offset: Offset): Side | null {
+  const zero =
+    Number(percentText(offset.fraction)) === 0 &&
+    (offset.mm === null || Number(mmText(offset.mm)) === 0);
+  return zero ? null : offset.side;
+}
+
+/** How head tilt and the lip line cant name a side. */
+export const tiltDirection = (side: Side): string => `patient's ${side} side lower`;
+
+/** How the midline cant names a side. */
+export const midlineDirection = (side: Side): string => `lower end toward patient's ${side}`;
+
+/** How the dental midline offset names a side. */
+export const offsetDirection = (side: Side): string => `toward patient's ${side}`;
 
 const unavailable = (reason: string, where: Where): string =>
   where === 'panel' ? `- (${reason})` : '-';
 
-/**
- * Shared by the angle formats. Rounded first, so a value that shows as 0.0 is
- * level and names no side, even when a hair off zero.
- */
+/** Shared by the angle formats. */
 function formatAngle(
   m: Measurement<Angle>,
   where: Where,
   wording: (side: Side) => string,
 ): string {
   if (!m.ok) return unavailable(m.reason, where);
-  const rounded = Math.round(m.value.degrees * 10) / 10;
-  const text = `${rounded.toFixed(1)}°`;
-  return rounded === 0 || m.value.side === null ? text : `${text}, ${wording(m.value.side)}`;
+  const text = `${degreesText(m.value.degrees)}°`;
+  const side = angleSideShown(m.value);
+  return side === null ? text : `${text}, ${wording(side)}`;
 }
 
 /** Head tilt or lip line cant: "2.1°, patient's left side lower". */
 export const formatTilt = (m: Measurement<Angle>, where: Where): string =>
-  formatAngle(m, where, (side) => `patient's ${side} side lower`);
+  formatAngle(m, where, tiltDirection);
 
 /** Midline cant: "2.1°, lower end toward patient's left". */
 export const formatMidline = (m: Measurement<Angle>, where: Where): string =>
-  formatAngle(m, where, (side) => `lower end toward patient's ${side}`);
+  formatAngle(m, where, midlineDirection);
 
-/** The dental midline offset: "9%, toward patient's left", or "0%". */
+/**
+ * The dental midline offset: "9% (0.8 mm), toward patient's left", or
+ * "9%, toward patient's left" without a pupil distance. The side is named
+ * unless everything shown rounds to zero.
+ */
 export function formatOffset(m: Measurement<Offset>, where: Where): string {
   if (!m.ok) return unavailable(m.reason, where);
-  const rounded = Math.round(m.value.fraction * 100);
-  const text = `${rounded}%`;
-  return rounded === 0 || m.value.side === null
-    ? text
-    : `${text}, toward patient's ${m.value.side}`;
+  const percent = percentText(m.value.fraction);
+  const text =
+    m.value.mm === null ? `${percent}%` : `${percent}% (${mmText(m.value.mm)} mm)`;
+  const side = offsetSideShown(m.value);
+  return side === null ? text : `${text}, ${offsetDirection(side)}`;
+}
+
+/** A tooth's size in mm, width × length, the unit left to the label: "8.5 × 10.6". */
+export function formatSize(m: Measurement<SizeMm>, where: Where): string {
+  if (!m.ok) return unavailable(m.reason, where);
+  return `${mmText(m.value.width)} × ${mmText(m.value.length)}`;
+}
+
+/**
+ * The report's line saying what the mm rest on, or null when there is no
+ * usable pupil distance -- the report then leaves out the line and the sizes.
+ */
+export function formatSizeBasis(pupilDistanceMm: number | null): string | null {
+  if (pupilDistanceMm === null || !isUsablePupilDistance(pupilDistanceMm)) return null;
+  return `Sizes in mm from a pupil distance of ${mmText(pupilDistanceMm)} mm.`;
 }
 
 /** A tooth number as a whole percent: "80%". */
 export function formatPercent(m: Measurement<number>, where: Where): string {
   if (!m.ok) return unavailable(m.reason, where);
-  return `${Math.round(m.value * 100)}%`;
+  return `${percentText(m.value)}%`;
 }

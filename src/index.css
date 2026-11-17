@@ -402,6 +402,47 @@ body { margin: 0; }
 .measurements td { padding: 0.2rem 0.5rem 0.2rem 0; text-align: left; vertical-align: top; }
 .measurements th { font-weight: 500; }
 .measurements th[scope='col'] { padding-top: 0.6rem; font-weight: 600; opacity: 0.65; }
+.measurements__note { display: block; font-size: 0.68rem; font-weight: 400; }
+.measurements__basis { margin: 0; font-size: 0.72rem; opacity: 0.65; }
+.measurements__download { margin: 0; }
+.measurements__download button {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.65rem;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+/* The pupil distance, above the measurements in the Design step. */
+.pupil-distance {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'label field' 'hint hint';
+  gap: 0.15rem 0.5rem;
+  align-items: center;
+}
+.pupil-distance__label { grid-area: label; font-size: 0.78rem; font-weight: 500; }
+.pupil-distance__field { grid-area: field; display: flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; }
+.pupil-distance__field input {
+  width: 4.5rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.pupil-distance__field input[aria-invalid='true'] { border-color: #d33; }
+.pupil-distance__hint,
+.pupil-distance__problem { grid-area: hint; margin: 0; font-size: 0.68rem; line-height: 1.35; }
+.pupil-distance__hint { opacity: 0.45; }
+.pupil-distance__problem { color: #d33; }
 
 /* --- report --- */
 
@@ -522,6 +563,7 @@ body { margin: 0; }
   .measurements h2 { margin-bottom: 0.4rem; }
   .measurements table { break-inside: avoid; page-break-inside: avoid; }
   .measurements th[scope='col'] { opacity: 1; color: #444; }
+  .measurements__basis { margin-top: 0.4rem; opacity: 1; color: #444; }
 
   @page { margin: 14mm; }
 }

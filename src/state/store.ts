@@ -36,6 +36,7 @@ import {
   type FacialReferences,
 } from '../domain/faceFrame.js';
 import { DEFAULT_TEMPLATE_ID } from '../domain/templates/buildTemplate.js';
+import { isUsablePupilDistance } from '../domain/measurements.js';
 import { DEFAULT_PALETTE, type ToothPalette } from '../vision/sampleToothColor.js';
 import {
   clearEdits,
@@ -314,6 +315,16 @@ export interface AppState {
   };
 
   /**
+   * The patient's pupil distance in mm, that sizes in mm are worked out from;
+   * null when not entered. Always null or 40-80 (see `setPupilDistance`).
+   *
+   * It belongs to the patient, not to a photo or a design: it invalidates
+   * nothing, is not in the undo history, and survives a photo being replaced.
+   * New case clears it; opening a case replaces it.
+   */
+  pupilDistanceMm: number | null;
+
+  /**
    * True while a slider is being dragged. Undo batching keys off this, and the
    * renderer can use it to skip expensive work mid-drag.
    */
@@ -368,6 +379,13 @@ export interface AppState {
    */
   setPalette(palette: ToothPalette | null, manual?: boolean): void;
   setReportField(field: 'patientName' | 'clinicName', value: string): void;
+  /**
+   * Set the pupil distance in mm, or clear it with null. A value outside
+   * 40-80 mm, or not a number, is ignored and the current one kept: the input
+   * checks first and says why, so only a bug reaches here with one -- and
+   * keeping it out means the autosave and Save case never carry it.
+   */
+  setPupilDistance(mm: number | null): void;
 
   /** Replace the editing selection. */
   setToothSelection(teeth: Universal[]): void;
@@ -541,6 +559,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   undoBatchDepth: 0,
   pendingUndo: null,
   report: { patientName: '', clinicName: '' },
+  pupilDistanceMm: null,
   paramDragActive: false,
 
   goToStep(step) {
@@ -1107,6 +1126,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
       // restored references.
       face: { refs: null, frame: null, error: null },
     }));
+    // Through the setter, so an odd value in an old autosave is dropped (left
+    // null by clearCase above) rather than carried into the next save. Absent
+    // in cases saved before sizes in mm: not entered.
+    get().setPupilDistance(saved.pupilDistanceMm ?? null);
 
     // Re-run the gates so the restored case lands on the right step with the
     // right steps unlocked, rather than trusting a persisted flag.
@@ -1197,6 +1220,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         mirrorMode: true,
       },
       report: { patientName: '', clinicName: '' },
+      pupilDistanceMm: null,
       history: initHistory({
         templateId: DEFAULT_TEMPLATE_ID,
         params: { ...DEFAULT_PARAMS },
@@ -1246,6 +1270,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setReportField(field, value) {
     set((state) => ({ report: { ...state.report, [field]: value } }));
     // Metadata only -- it invalidates nothing.
+  },
+
+  setPupilDistance(mm) {
+    if (mm !== null && !isUsablePupilDistance(mm)) return;
+    set({ pupilDistanceMm: mm });
+    // Like the report fields, it invalidates nothing.
   },
 
   resetParams() {

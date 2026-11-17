@@ -57,6 +57,7 @@ export async function buildCaseContent(s: AppState): Promise<BuiltCase> {
         mirrorMode: s.design.mirrorMode,
       },
       report: s.report,
+      pupilDistanceMm: s.pupilDistanceMm,
     },
     unreadablePhotos,
   };

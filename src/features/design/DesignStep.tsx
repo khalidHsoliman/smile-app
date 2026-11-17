@@ -16,6 +16,7 @@ import { vec } from '../../domain/geometry.js';
 import { UndoControls } from './UndoControls.js';
 import { ToothLayer } from './ToothLayer.js';
 import { Measurements } from '../measurements/Measurements.js';
+import { PupilDistanceInput } from '../measurements/PupilDistanceInput.js';
 
 /**
  * The design step: the arch fitted onto the photo, with the five
@@ -46,6 +47,7 @@ export function DesignStep() {
   const toggleToothSelection = useAppStore((s) => s.toggleToothSelection);
   const setToothSelection = useAppStore((s) => s.setToothSelection);
   const setPalette = useAppStore((s) => s.setPalette);
+  const pupilDistanceMm = useAppStore((s) => s.pupilDistanceMm);
 
   const template = templateId ? getTemplate(templateId) : undefined;
 
@@ -228,10 +230,13 @@ export function DesignStep() {
 
           <ParamSliders />
 
+          <PupilDistanceInput />
+
           <Measurements
             refs={refs}
             teeth={fit?.teeth ?? null}
             template={template}
+            pupilDistanceMm={pupilDistanceMm}
             where="panel"
           />
 

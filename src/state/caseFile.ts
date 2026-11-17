@@ -26,6 +26,7 @@ import type { Matrix2D, Vec2 } from '../domain/geometry.js';
 import type { ToothEdit, ToothEdits } from '../domain/toothEdits.js';
 import type { ToothPalette } from '../vision/sampleToothColor.js';
 import { isUniversal, type Universal } from '../domain/teeth.js';
+import { isUsablePupilDistance, PUPIL_DISTANCE_MM } from '../domain/measurements.js';
 import { ACCEPTED_TYPES } from '../features/upload/loadPhoto.js';
 
 /** Marks a JSON file as ours. Written first so it is visible at the top. */
@@ -38,7 +39,7 @@ export const CASE_FILE_FORMAT = 'smile-design-case';
  * turns the previous version's body into the new one -- old files must always
  * keep opening. Files with a higher version are refused.
  */
-export const CASE_FILE_VERSION = 1;
+export const CASE_FILE_VERSION = 2;
 
 export const CASE_FILE_EXTENSION = '.smilecase';
 
@@ -48,8 +49,13 @@ export type CasePhoto = Omit<StoredPhoto, 'rotation'>;
 /**
  * The content of a case: the autosaved case without its storage key and save
  * time. `restoreCase({ id, savedAt, ...content })` loads it.
+ *
+ * The pupil distance is optional in the autosave (older autosaves lack it)
+ * but always present here: a version 2 file always carries it, and opening a
+ * version 1 file fills in null.
  */
-export type CaseContent = Omit<StoredCase, 'id' | 'savedAt' | 'photos'> & {
+export type CaseContent = Omit<StoredCase, 'id' | 'savedAt' | 'photos' | 'pupilDistanceMm'> & {
+  pupilDistanceMm: number | null;
   photos: Partial<Record<PhotoKind, CasePhoto>>;
 };
 
@@ -213,7 +219,16 @@ function damaged(detail: string): CaseFileError {
  * Bring an older file's body up to the current version, one version at a
  * time. `UPGRADES[n]` turns a version-n body into a version-(n+1) body.
  */
-const UPGRADES: Record<number, (body: unknown) => unknown> = {};
+const UPGRADES: Record<number, (body: unknown) => unknown> = {
+  /*
+   * Version 2 added the pupil distance. A version 1 case has none: it opens
+   * with none entered. Set outright rather than kept: version 1 had no such
+   * field, so one found there is not the app's and is dropped like any other
+   * unknown field. A body that is not an object is left for the checks to
+   * refuse.
+   */
+  1: (body) => (isRecord(body) ? { ...body, pupilDistanceMm: null } : body),
+};
 
 function upgrade(version: number, body: unknown): unknown {
   let current = body;
@@ -266,6 +281,7 @@ function readBody(raw: unknown): {
 
   const body: Omit<CaseContent, 'photos'> = {
     report: report(c['report'], 'case.report'),
+    pupilDistanceMm: pupilDistance(c['pupilDistanceMm'], 'case.pupilDistanceMm'),
     selectedTeeth: array(c['selectedTeeth'], 'case.selectedTeeth', tooth),
     refs: c['refs'] === null ? null : facialReferences(c['refs'], 'case.refs'),
     // Optional: absent in cases saved before matching existed.
@@ -282,6 +298,16 @@ function report(raw: unknown, path: string): CaseContent['report'] {
     patientName: string(r['patientName'], `${path}.patientName`),
     clinicName: string(r['clinicName'], `${path}.clinicName`),
   };
+}
+
+/** Null (not entered) or a number of mm the app can work sizes out from. */
+function pupilDistance(raw: unknown, path: string): number | null {
+  if (raw === null) return null;
+  const mm = finite(raw, path);
+  if (!isUsablePupilDistance(mm)) {
+    throw new Invalid(path, `is not between ${PUPIL_DISTANCE_MM.min} and ${PUPIL_DISTANCE_MM.max} mm`);
+  }
+  return mm;
 }
 
 function facialReferences(raw: unknown, path: string): FacialReferences {

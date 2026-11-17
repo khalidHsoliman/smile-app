@@ -66,15 +66,27 @@ export function reportImageFileName(patientName: string, label: string): string 
 }
 
 /**
+ * The report's measurements as a CSV file, named like the report images:
+ * `jane-doe-measurements.csv`, or `patient-measurements.csv`.
+ */
+export function measurementsFileName(patientName: string): string {
+  return `${patientSlug(patientName) || 'patient'}-measurements.csv`;
+}
+
+/** The local calendar day, `2025-11-14`. */
+export function localDay(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+/**
  * A case file: `jane-doe-2025-11-14.smilecase`, or `2025-11-14.smilecase`
  * without a name. The date is the local calendar day.
  */
 export function caseFileName(patientName: string, date: Date): string {
   const name = patientSlug(patientName);
-  const day = [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-');
-  return `${name ? `${name}-` : ''}${day}${CASE_FILE_EXTENSION}`;
+  return `${name ? `${name}-` : ''}${localDay(date)}${CASE_FILE_EXTENSION}`;
 }
