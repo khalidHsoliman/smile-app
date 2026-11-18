@@ -207,6 +207,17 @@ body { margin: 0; }
 }
 .analysis__warning code { font-size: 0.95em; }
 
+/* A case that did not open as saved says so, above whatever step is showing. */
+.app__notice {
+  margin: 0 0 1rem;
+  max-width: 48rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, #d38b00 18%, transparent);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 /* --- design: template picker --- */
 
 .step__heading { font-size: 0.875rem; font-weight: 600; margin: 0; }
@@ -239,7 +250,31 @@ body { margin: 0; }
   paint-order: stroke;
 }
 
-.template__name { font-size: 0.85rem; font-weight: 600; }
+.template__name { font-size: 0.85rem; font-weight: 600; overflow-wrap: anywhere; }
+.template__badge {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.75;
+  vertical-align: 0.1em;
+}
+
+.templates__picker { display: grid; gap: 0.6rem; }
+.templates__actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.templates__actions button:disabled { opacity: 0.45; cursor: default; }
+/* Names the place in the file, so it wraps rather than overflowing the panel. */
+.templates__problem {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, #d33 16%, transparent);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
 .template__description { font-size: 0.75rem; opacity: 0.6; line-height: 1.4; }
 
 /* --- design step --- */

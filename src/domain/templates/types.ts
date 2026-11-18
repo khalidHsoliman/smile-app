@@ -10,7 +10,6 @@
  * face frame, so a template is a set of *proportions*, not measurements.
  */
 
-import type { Vec2 } from '../geometry.js';
 import type { Universal } from '../teeth.js';
 
 /**
@@ -24,16 +23,17 @@ import type { Universal } from '../teeth.js';
  */
 export interface ToothTemplate {
   universal: Universal;
-  /** Closed SVG path in the local frame. 8-20 control points. */
+  /**
+   * Closed SVG path in the local frame, written with absolute `M`, `L`, `C`,
+   * `Q` and `Z` only: the design's bounding box reads the numbers as x,y pairs
+   * (see `controlPoints` in ToothLayer), and imported templates are held to
+   * the same rule (see `state/templateFile.ts`).
+   */
   outline: string;
   /** Width relative to the central incisor at 1.0. */
   width: number;
   /** Length (incisal to gingival) in the same units as `width`. */
   length: number;
-  /** Gum-line high point, local frame. A flat gum line reads as artificial. */
-  gingivalZenith: Vec2;
-  /** The biting edge, local frame, used for smile-arc fitting. */
-  incisalEdge: Vec2[];
   /**
    * How far this tooth's incisal edge sits *above* the central's, in width
    * units. Positive means shorter. Laterals are ~0.5-1mm shorter and canines
@@ -50,4 +50,19 @@ export interface Template {
   /** One-line description of the aesthetic character. */
   description: string;
   teeth: Record<Universal, ToothTemplate>;
+  /**
+   * How the Ratio and Tooth proportion sliders act on this template.
+   *
+   * - `'absolute'`, the built-in templates: the slider values *are* the
+   *   proportions drawn -- the central's width:length, and the lateral's and
+   *   canine's widths -- whatever the template's own. The template supplies
+   *   the shapes, each tooth's length relative to its central, the back
+   *   teeth's widths and the incisal offsets.
+   * - `'relative'`, imported templates: the sliders start at the template's
+   *   own proportions (see `proportions.ts`), where every tooth is drawn
+   *   exactly as authored, and move the teeth from there.
+   *
+   * Not in the template file: it follows from where the template came from.
+   */
+  sliders: 'absolute' | 'relative';
 }

@@ -16,6 +16,8 @@ import { useAutosave, type SaveState } from './state/useAutosave.js';
 export function App() {
   const step = useAppStore((s) => s.step);
   const clearCase = useAppStore((s) => s.clearCase);
+  const templateNotice = useAppStore((s) => s.templateNotice);
+  const dismissTemplateNotice = useAppStore((s) => s.dismissTemplateNotice);
   const { state: saveState, restored } = useAutosave();
 
   return (
@@ -42,6 +44,14 @@ export function App() {
         </div>
       </header>
       <main className="app__main">
+        {templateNotice && (
+          <p className="app__notice no-print" role="status">
+            {templateNotice}{' '}
+            <button type="button" onClick={dismissTemplateNotice}>
+              OK
+            </button>
+          </p>
+        )}
         {!restored && <p className="placeholder">Loading your last case…</p>}
         {restored && step === 'upload' && <UploadStep />}
         {restored && step === 'matching' && <MatchingStep />}

@@ -11,7 +11,6 @@
  * beautiful.
  */
 
-import { vec, type Vec2 } from '../geometry.js';
 import { isPatientRight, isUpper, type Universal } from '../teeth.js';
 import type { Template, ToothTemplate } from './types.js';
 
@@ -259,11 +258,7 @@ const HOLLYWOOD: Record<ToothType, TypeProportions> = {
  * `side` is -1 for the patient's right, +1 for their left, and mirrors the
  * asymmetric features -- the zenith sits distal to the tooth's centre line.
  */
-function buildOutline(p: TypeProportions, side: -1 | 1): {
-  outline: string;
-  incisalEdge: Vec2[];
-  gingivalZenith: Vec2;
-} {
+function buildOutline(p: TypeProportions, side: -1 | 1): { outline: string } {
   const halfWidth = p.width / 2;
   const length = p.length;
   const cervicalHalf = halfWidth * (1 - p.cervicalTaper);
@@ -309,25 +304,9 @@ function buildOutline(p: TypeProportions, side: -1 | 1): {
   // The incisal edge bows downward at its centre on an unworn tooth.
   const bowY = -p.incisalBow * p.width;
 
-  /*
-   * The incisal edge as the fitter sees it: the anchor laid along the smile
-   * curve. Every point sits at y = 0 by contract -- the bow is a shape detail
-   * of the drawn outline, not a displacement of the anchor. Letting the bow
-   * leak in here would tilt the tooth against the smile curve by however much
-   * the edge was bowed.
-   */
-  const incisalEdge: Vec2[] = isCusp
-    ? [vec(cuspTipX, 0)]
-    : [
-        vec(mesialSign * mesialFlat, 0),
-        vec(0, 0),
-        vec(-mesialSign * distalFlat, 0),
-      ];
-
   // The gum line is a smooth convex arc peaking at the zenith, which sits
   // distal to the tooth's centre line.
   const zenithX = side * p.zenithOffset * p.width;
-  const gingivalZenith = vec(zenithX, length);
   const shoulderY = length - p.zenithDrop * p.width - length * 0.04;
 
   // Widest point of the crown, in the incisal third.
@@ -407,7 +386,7 @@ function buildOutline(p: TypeProportions, side: -1 | 1): {
 
   path.push('Z');
 
-  return { outline: path.join(' '), incisalEdge, gingivalZenith };
+  return { outline: path.join(' ') };
 }
 
 const round = (n: number): number => Math.round(n * 10000) / 10000;
@@ -430,15 +409,13 @@ function buildTooth(
    * both are corrected together against the one shared predicate.
    */
   const side: -1 | 1 = isPatientRight(universal) ? -1 : 1;
-  const { outline, incisalEdge, gingivalZenith } = buildOutline(p, side);
+  const { outline } = buildOutline(p, side);
 
   return {
     universal,
     outline,
     width: p.width,
     length: p.length,
-    gingivalZenith,
-    incisalEdge,
     incisalOffset: p.incisalOffset,
   };
 }
@@ -453,7 +430,7 @@ function buildTemplate(
   for (let universal = 1; universal <= 32; universal++) {
     teeth[universal] = buildTooth(universal, proportions);
   }
-  return { id, name, description, teeth };
+  return { id, name, description, teeth, sliders: 'absolute' };
 }
 
 export const TEMPLATES: Template[] = [
@@ -473,5 +450,22 @@ export const TEMPLATES: Template[] = [
 
 export const getTemplate = (id: string): Template | undefined =>
   TEMPLATES.find((t) => t.id === id);
+
+/** True for the templates built into the app, as opposed to imported ones. */
+export const isBuiltInTemplate = (id: string): boolean =>
+  TEMPLATES.some((t) => t.id === id);
+
+/**
+ * The one lookup for the template a design uses: the built-in ones, then the
+ * ones imported into the open case. Undefined for no template or an id that
+ * is neither -- which draws nothing and keeps the report locked.
+ */
+export function findTemplate(
+  id: string | null,
+  imported: readonly Template[],
+): Template | undefined {
+  if (id === null) return undefined;
+  return getTemplate(id) ?? imported.find((t) => t.id === id);
+}
 
 export const DEFAULT_TEMPLATE_ID = 'natural';

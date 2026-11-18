@@ -90,3 +90,13 @@ export function caseFileName(patientName: string, date: Date): string {
   const name = patientSlug(patientName);
   return `${name ? `${name}-` : ''}${localDay(date)}${CASE_FILE_EXTENSION}`;
 }
+
+/**
+ * A tooth template file, named after the template it holds:
+ * `natural-copy-template.json`, `clinic-a-template.json`, or `template.json`
+ * when nothing of the name is left.
+ */
+export function templateFileName(templateName: string): string {
+  const name = patientSlug(templateName);
+  return `${name ? `${name}-` : ''}template.json`;
+}

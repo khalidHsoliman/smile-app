@@ -26,6 +26,9 @@ import type { Matrix2D, Vec2 } from '../domain/geometry.js';
 import type { ToothEdit, ToothEdits } from '../domain/toothEdits.js';
 import type { ToothPalette } from '../vision/sampleToothColor.js';
 import { isUniversal, type Universal } from '../domain/teeth.js';
+import type { Template } from '../domain/templates/types.js';
+import { isBuiltInTemplate } from '../domain/templates/buildTemplate.js';
+import { templateFromJson, TemplateFileError, templateToJson } from './templateFile.js';
 import { isUsablePupilDistance, PUPIL_DISTANCE_MM } from '../domain/measurements.js';
 import { ACCEPTED_TYPES } from '../features/upload/loadPhoto.js';
 
@@ -39,7 +42,7 @@ export const CASE_FILE_FORMAT = 'smile-design-case';
  * turns the previous version's body into the new one -- old files must always
  * keep opening. Files with a higher version are refused.
  */
-export const CASE_FILE_VERSION = 2;
+export const CASE_FILE_VERSION = 3;
 
 export const CASE_FILE_EXTENSION = '.smilecase';
 
@@ -117,16 +120,22 @@ export async function writeCaseFile(content: CaseContent, savedAt: Date = new Da
   }
 
   let body: Omit<CaseContent, 'photos'>;
+  let design: Record<string, unknown>;
   try {
     if (Number.isNaN(savedAt.getTime())) throw new Invalid('savedAt', 'is not a valid date');
     // The same checks as opening, run on what is about to be written. The
     // result is a fresh copy holding the known fields only.
-    body = readBody({ ...content, photos }).body;
+    body = readBody({ ...content, design: designForFile(content.design), photos }).body;
+    design = designForFile(body.design);
   } catch (error) {
-    if (error instanceof Invalid) {
+    const detail =
+      error instanceof Invalid ? error.detail
+      : error instanceof TemplateFileError ? `case.design.template ${error.detail}`
+      : null;
+    if (detail !== null) {
       throw new CaseFileError(
         'cannot-save',
-        `This case cannot be saved to a file: ${error.detail}. This is a bug in the app, not something you did.`,
+        `This case cannot be saved to a file: ${detail}. This is a bug in the app, not something you did.`,
       );
     }
     throw error;
@@ -138,7 +147,7 @@ export async function writeCaseFile(content: CaseContent, savedAt: Date = new Da
     savedAt: savedAt.toISOString(),
     // The photos go last: a person opening the file sees the short, readable
     // fields first rather than megabytes of base64.
-    case: { ...body, photos },
+    case: { ...body, design, photos },
   };
   return new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
 }
@@ -206,6 +215,16 @@ export async function readCaseFile(file: Blob): Promise<OpenedCase> {
   }
 }
 
+/**
+ * The design as the file carries it: an imported template as template file
+ * JSON (see `templateFile.ts`), so the case file and a template file hold a
+ * template the same way and are checked by the same code.
+ */
+function designForFile(design: CaseContent['design']): Record<string, unknown> {
+  const { template, ...rest } = design;
+  return template ? { ...rest, template: templateToJson(template) } : rest;
+}
+
 const MARKER_AT_START = new RegExp(`^\\s*\\{\\s*"format"\\s*:\\s*"${CASE_FILE_FORMAT}"`);
 
 function damaged(detail: string): CaseFileError {
@@ -228,6 +247,17 @@ const UPGRADES: Record<number, (body: unknown) => unknown> = {
    * refuse.
    */
   1: (body) => (isRecord(body) ? { ...body, pupilDistanceMm: null } : body),
+  /*
+   * Version 3 carries an imported template in the design. Version 2 could use
+   * only the built-in templates, so it has none: one found there is not the
+   * app's and is dropped. A version 2 design naming any other template is left
+   * for the checks to refuse, as it would be in version 3.
+   */
+  2: (body) => {
+    if (!isRecord(body) || !isRecord(body['design'])) return body;
+    const { template: _dropped, ...design } = body['design'];
+    return { ...body, design };
+  },
 };
 
 function upgrade(version: number, body: unknown): unknown {
@@ -343,9 +373,9 @@ function matching(raw: unknown, path: string): NonNullable<CaseContent['matching
 
 function design(raw: unknown, path: string): CaseContent['design'] {
   const d = record(raw, path);
-  const templateId = d['templateId'];
+  const templateId = d['templateId'] === null ? null : string(d['templateId'], `${path}.templateId`);
   const result: CaseContent['design'] = {
-    templateId: templateId === null ? null : string(templateId, `${path}.templateId`),
+    templateId,
     params: params(d['params'], `${path}.params`),
     palette: palette(d['palette'], `${path}.palette`),
     paletteSampled: boolean(d['paletteSampled'], `${path}.paletteSampled`),
@@ -357,7 +387,39 @@ function design(raw: unknown, path: string): CaseContent['design'] {
   if (d['photoBlend'] !== undefined) {
     result.photoBlend = boolean(d['photoBlend'], `${path}.photoBlend`);
   }
+
+  // An imported template travels with the case; a built-in one is named only.
+  // Either way the case opens with the very template it was designed with, or
+  // not at all.
+  if (templateId !== null && !isBuiltInTemplate(templateId)) {
+    if (d['template'] === undefined) {
+      throw new Invalid(
+        `${path}.templateId`,
+        `is "${templateId}", which is not a built-in template, and the case does not carry that template`,
+      );
+    }
+    result.template = carriedTemplate(d['template'], `${path}.template`, templateId);
+  } else if (d['template'] !== undefined) {
+    throw new Invalid(`${path}.template`, 'is there, but the design does not use an imported template');
+  }
   return result;
+}
+
+/** The imported template a case carries: a usable one, and the one it names. */
+function carriedTemplate(raw: unknown, path: string, templateId: string): Template {
+  let template: Template;
+  try {
+    template = templateFromJson(raw);
+  } catch (error) {
+    if (error instanceof TemplateFileError) throw new Invalid(path, `is not a usable template: ${error.detail}`);
+    throw error;
+  }
+  // The id comes from the content, so a template edited inside the file, or
+  // swapped for another, no longer matches the id the design was saved with.
+  if (template.id !== templateId) {
+    throw new Invalid(path, `is not the template the design names ("${templateId}")`);
+  }
+  return template;
 }
 
 function params(raw: unknown, path: string): FineTuneParams {

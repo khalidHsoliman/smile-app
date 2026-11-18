@@ -16,10 +16,12 @@ import {
   centralsOf,
   isPatientRight,
   isUpper,
+  UPPER_CENTRALS,
   type Arch,
   type Universal,
 } from './teeth.js';
 import type { Template, ToothTemplate } from './templates/types.js';
+import { ownProportions } from './templates/proportions.js';
 
 /**
  * The global fine-tune parameters.
@@ -191,9 +193,19 @@ function fitArch(
 
   // The template's own width:length is the baseline; `ratio` scales away from
   // it. A ratio equal to the template's leaves the teeth as authored.
-  const referenceTooth = template.teeth[rightCentral];
+  //
+  // A built-in template measures each arch from its own central. An imported
+  // one measures both from the upper central, FDI 11, whose width:length is
+  // where the Ratio slider starts: at that value every tooth in both arches,
+  // lower centrals included, is drawn exactly as authored. (In the built-in
+  // templates both centrals have the same width:length, so the two would agree.)
+  const relative = template.sliders === 'relative';
+  const referenceTooth = template.teeth[relative ? UPPER_CENTRALS[0] : rightCentral];
   if (!referenceTooth) return [];
   const templateRatio = referenceTooth.width / referenceTooth.length;
+  // Where an imported template's Tooth proportion slider starts: its own.
+  const templateRed = relative ? ownProportions(template.teeth)?.redProportion : undefined;
+  if (relative && templateRed === undefined) return [];
 
   const placed: PlacedTooth[] = [];
 
@@ -209,6 +221,8 @@ function fitArch(
     let edge = 0;
     // The previous tooth's placed width, for the monotonic-width clamp.
     let previousWidth: number | null = null;
+    // And its width in the template, for an imported template's clamp.
+    let previousAuthored: number | null = null;
 
     for (const universal of side) {
       const tooth = template.teeth[universal];
@@ -225,11 +239,10 @@ function fitArch(
       // RED reshapes the anterior width relationships. Position 1 (central) is
       // unchanged; every step outward multiplies by the proportion, so the
       // whole run stays anchored to the central rather than drifting.
-      const redScale = redScaleFor(
-        distanceFromMidline(universal, arch),
-        tooth.width,
-        params.redProportion,
-      );
+      const redScale =
+        templateRed === undefined
+          ? redScaleFor(distanceFromMidline(universal, arch), tooth.width, params.redProportion)
+          : relativeRedScale(distanceFromMidline(universal, arch), params.redProportion, templateRed);
 
       // Foreshortening from arch curvature: teeth further from the midline turn
       // away from the viewer, so they present less width. A narrow arch turns
@@ -244,9 +257,18 @@ function fitArch(
        * visible bulge at the anterior/posterior junction. Clamping against the
        * neighbour keeps the progression monotonic whatever the settings.
        */
-      const width = Math.min(rawWidth, previousWidth ?? rawWidth);
+      //
+      // An imported template's own widths are respected: a tooth it draws
+      // wider than the one in front is left wider, so the clamp can never
+      // change a template at its starting proportions.
+      const clampTo =
+        relative && previousAuthored !== null && tooth.width > previousAuthored
+          ? null
+          : previousWidth;
+      const width = Math.min(rawWidth, clampTo ?? rawWidth);
       const widthScale = width / tooth.width;
       previousWidth = width;
+      previousAuthored = tooth.width;
       const lengthScale = lengthScaleFor(params.ratio, templateRatio);
 
       // Centre of this tooth, measured outward along the arch. Teeth stay in
@@ -346,6 +368,23 @@ function redScaleFor(
   if (position <= 1 || position > RED_LAST_POSITION) return 1;
   const target = redProportion ** (position - 1);
   return target / templateWidth;
+}
+
+/**
+ * The Tooth proportion multiplier for an imported template's tooth at
+ * `position` from the midline.
+ *
+ * The slider starts at the template's own lateral:central width, `templateRed`.
+ * Moving it scales the template's own lateral and canine widths together --
+ * the lateral by the slider's change, the canine by its square, as RED
+ * compounds -- so the clinic's own relationship between them is kept. At the
+ * starting value the multiplier is exactly 1 and every width is as authored.
+ * It multiplies each tooth's own width, so the lower teeth keep the widths the
+ * template gives them against the lower centrals, however narrow those are.
+ */
+function relativeRedScale(position: number, redProportion: number, templateRed: number): number {
+  if (position <= 1 || position > RED_LAST_POSITION) return 1;
+  return (redProportion / templateRed) ** (position - 1);
 }
 
 /**

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '../../state/store.js';
 import { fitArches } from '../../domain/fitting.js';
 import { applyEdits } from '../../domain/toothEdits.js';
-import { getTemplate } from '../../domain/templates/buildTemplate.js';
+import { findTemplate } from '../../domain/templates/buildTemplate.js';
 import { lipBoxFrom } from '../../domain/lipBox.js';
 import type { Rect } from '../../domain/geometry.js';
 import { alignedFaceFrame, withoutAperture } from '../../domain/alignedFrame.js';
@@ -40,13 +40,14 @@ export function useSnapshots() {
   const refs = useAppStore((s) => s.face.refs);
   const selectedTeeth = useAppStore((s) => s.selectedTeeth);
   const design = useAppStore((s) => s.design);
+  const importedTemplates = useAppStore((s) => s.importedTemplates);
   const matching = useAppStore((s) => s.matching);
 
   const [snapshots, setSnapshots] = useState<Snapshots>({ images: {}, blobs: {} });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const template = design.templateId ? getTemplate(design.templateId) : undefined;
+  const template = findTemplate(design.templateId, importedTemplates);
 
   /*
    * The fit *with* the per-tooth edits applied. The report must show exactly

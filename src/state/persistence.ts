@@ -21,6 +21,7 @@ import type { ToothEdits } from '../domain/toothEdits.js';
 import type { ToothPalette } from '../vision/sampleToothColor.js';
 import type { Universal } from '../domain/teeth.js';
 import type { QuarterTurns } from '../domain/imageOrientation.js';
+import type { Template } from '../domain/templates/types.js';
 
 /** One photo as stored: the bytes plus what we know about them. */
 export interface StoredPhoto {
@@ -72,6 +73,12 @@ export interface StoredCase {
     /** Optional: absent in cases saved before the blend pass existed. */
     photoBlend?: boolean;
     mirrorMode: boolean;
+    /**
+     * The template `templateId` names, when it is an imported one: it travels
+     * with the case, so the case opens anywhere. Absent for a built-in
+     * template, which is saved by id alone and so follows the app's updates.
+     */
+    template?: Template;
   };
   report: { patientName: string; clinicName: string };
   /**

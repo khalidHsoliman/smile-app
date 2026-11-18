@@ -35,7 +35,15 @@ import {
   type FaceFrame,
   type FacialReferences,
 } from '../domain/faceFrame.js';
-import { DEFAULT_TEMPLATE_ID } from '../domain/templates/buildTemplate.js';
+import { DEFAULT_TEMPLATE_ID, findTemplate } from '../domain/templates/buildTemplate.js';
+import {
+  BUILT_IN_START,
+  PROPORTION_LIMITS,
+  startingProportions,
+} from '../domain/templates/proportions.js';
+import type { Template } from '../domain/templates/types.js';
+import { withImported } from './templateFile.js';
+import { restoredDesign } from './caseContent.js';
 import { isUsablePupilDistance } from '../domain/measurements.js';
 import { DEFAULT_PALETTE, type ToothPalette } from '../vision/sampleToothColor.js';
 import {
@@ -82,31 +90,29 @@ export interface FineTuneParams {
  * Ranges and step sizes. Used by the sliders and by `clampParams`.
  */
 export const PARAM_LIMITS = {
-  /*
-   * Narrowed from the inherited 0.10-1.00. Below about 0.55 a central incisor
-   * is anatomically impossible, so most of that travel was unusable and the
-   * clinically meaningful band was a small part of the track. 0.55-0.95
-   * comfortably contains the 0.70-0.90 working range and the 0.80 target.
-   */
-  ratio: { min: 0.55, max: 0.95, step: 0.01 },
+  // Ratio and Tooth proportion are defined with the templates, whose own
+  // proportions must fall inside them (see `domain/templates/proportions.ts`).
+  ratio: PROPORTION_LIMITS.ratio,
   scale: { min: 0.1, max: 4.0, step: 0.05 },
   smileCurve: { min: -5.0, max: 5.0, step: 0.1 },
   occlusalGap: { min: -100, max: 100, step: 1 },
-  /*
-   * The published RED band: 0.62 golden proportion (tall faces), 0.70 normal,
-   * 0.80 short faces. A little headroom either side for judgment.
-   */
-  redProportion: { min: 0.55, max: 0.85, step: 0.01 },
+  redProportion: PROPORTION_LIMITS.redProportion,
   /* +/- 25% of the fitted span covers narrow-to-wide buccal corridors. */
   archWidth: { min: 0.75, max: 1.25, step: 0.01 },
 } as const satisfies Record<keyof FineTuneParams, { min: number; max: number; step: number }>;
 
+/**
+ * The parameters a new design starts from. Ratio and Tooth proportion are where
+ * the built-in templates start (0.80, the clinical target for a central
+ * incisor; 0.70, normal facial height); choosing a template, or Reset, moves
+ * them to that template's own (see `domain/templates/proportions.ts`).
+ */
 export const DEFAULT_PARAMS: FineTuneParams = {
-  ratio: 0.8, // the clinical target for a central incisor
+  ratio: BUILT_IN_START.ratio,
   scale: 1.0,
   smileCurve: 1.0, // a visible smile arc by default; flat reads as artificial
   occlusalGap: 0,
-  redProportion: 0.7, // normal facial height
+  redProportion: BUILT_IN_START.redProportion,
   archWidth: 1.0,
 };
 
@@ -288,6 +294,19 @@ export interface AppState {
   };
 
   /**
+   * Templates imported into the open case, found by `findTemplate` alongside
+   * the built-in ones. They belong to the case, not the app: New case and
+   * opening a case replace them, and the one the design uses is saved with it.
+   */
+  importedTemplates: Template[];
+
+  /**
+   * Why the case did not open as saved, for the clinician; null when it did.
+   * Set when an autosaved design's template could not be found.
+   */
+  templateNotice: string | null;
+
+  /**
    * One pan/zoom transform shared by the photo and every overlay.
    * Layers must never transform independently.
    */
@@ -368,7 +387,18 @@ export interface AppState {
   syncAnalysisGate(): void;
   /** Re-evaluate whether the report is reachable. */
   syncDesignGate(): void;
+  /**
+   * Choose a template: clears the per-tooth edits and puts Ratio and Tooth
+   * proportion at its starting values. The one already in use: nothing.
+   */
   setTemplate(templateId: string): void;
+  /**
+   * Add a template, already read and checked, to the open case. The same
+   * template again changes nothing; a different one under a name already in
+   * the case throws a `TemplateFileError` whose message can be shown.
+   */
+  addImportedTemplate(template: Template): void;
+  dismissTemplateNotice(): void;
   setParams(params: Partial<FineTuneParams>): void;
   setTeethOpacity(opacity: number): void;
   setLipMask(enabled: boolean): void;
@@ -550,6 +580,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
     selection: [],
     mirrorMode: true,
   },
+  importedTemplates: [],
+  templateNotice: null,
   view: { transform: IDENTITY },
   history: initHistory<DesignSnapshot>({
     templateId: DEFAULT_TEMPLATE_ID,
@@ -782,16 +814,40 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   setTemplate(templateId) {
+    // Choosing the template already in use changes nothing: clicking its card
+    // again must not cost the clinician their per-tooth edits or sliders.
+    if (get().design.templateId === templateId) return;
+
     // Per-tooth edits are deltas against a particular set of tooth shapes, so a
     // different template makes them meaningless -- a nudge that squared up a
     // Natural canine means nothing on a Hollywood one. `invalidateAfter` cannot
     // do this: it only resets steps *after* its argument, never design's own
     // state, so the clearing has to be explicit.
-    set((state) =>
-      record(state, { ...state.design, templateId, edits: {}, selection: [] }),
-    );
+    //
+    // Ratio and Tooth proportion go to where this template starts: 0.80 and
+    // 0.70 for a built-in one, its own proportions for an imported one, so an
+    // imported template first appears exactly as its file draws it. The rest
+    // of the sliders are about this face, not the teeth, and stay. One undo
+    // step takes back the template and the sliders together.
+    set((state) => {
+      const template = findTemplate(templateId, state.importedTemplates);
+      const params = template
+        ? { ...state.design.params, ...startingProportions(template) }
+        : state.design.params;
+      return record(state, { ...state.design, templateId, params, edits: {}, selection: [] });
+    });
     get().invalidateAfter('design');
     get().syncDesignGate();
+  },
+
+  addImportedTemplate(template) {
+    // Throws before anything changes, so a refused template leaves no trace.
+    const importedTemplates = withImported(get().importedTemplates, template);
+    set({ importedTemplates });
+  },
+
+  dismissTemplateNotice() {
+    set({ templateNotice: null });
   },
 
   setParams(params) {
@@ -1174,14 +1230,26 @@ export const useAppStore = create<AppState>()((set, get) => ({
      * new baseline, and undo must not step back into a state from a different
      * session.
      */
+    /*
+     * An imported template comes back with the design, and the two go on
+     * together so nothing ever names a template the case does not hold. One
+     * that cannot be found opens as Natural, with a notice (see
+     * `restoredDesign`).
+     */
+    const restored = restoredDesign(saved.design);
     set((state) => ({
-      design: { ...state.design, ...saved.design, selection: [] },
+      design: { ...state.design, ...restored.design, selection: [] },
+      importedTemplates: restored.importedTemplates,
+      templateNotice: restored.notice,
       history: initHistory({
-        templateId: saved.design.templateId,
-        params: saved.design.params,
-        edits: saved.design.edits,
+        templateId: restored.design.templateId,
+        params: restored.design.params,
+        edits: restored.design.edits,
       }),
     }));
+    // The gates above ran on the default template; this one decides on the
+    // restored one.
+    get().syncDesignGate();
 
     // Legacy stored rotations are baked in afterwards, which re-runs the
     // cascade for those cases only. New saves never reach this.
@@ -1221,6 +1289,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
       },
       report: { patientName: '', clinicName: '' },
       pupilDistanceMm: null,
+      importedTemplates: [],
+      templateNotice: null,
       history: initHistory({
         templateId: DEFAULT_TEMPLATE_ID,
         params: { ...DEFAULT_PARAMS },
@@ -1230,7 +1300,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   /**
-   * The design step's exit condition: a usable frame and a template.
+   * The design step's exit condition: a usable frame and a template that is
+   * really there. An id alone is not enough: one that names no template draws
+   * no teeth, and the report would show and export an empty design.
    *
    * This has to be its own gate rather than a one-off unlock inside
    * `syncAnalysisGate`. Every design action calls `invalidateAfter('design')`,
@@ -1239,8 +1311,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
    * back. Same shape as the upload and analysis gates: invalidate, then re-gate.
    */
   syncDesignGate() {
-    const { face, design } = get();
-    if (face.frame !== null && design.templateId !== null) {
+    const { face, design, importedTemplates } = get();
+    if (face.frame !== null && findTemplate(design.templateId, importedTemplates) !== undefined) {
       get().unlockStep('report');
       return;
     }
@@ -1279,9 +1351,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   resetParams() {
-    set((state) =>
-      record(state, { ...state.design, params: { ...DEFAULT_PARAMS } }),
-    );
+    // Ratio and Tooth proportion go back to where the template starts, as they
+    // do when it is chosen.
+    set((state) => {
+      const template = findTemplate(state.design.templateId, state.importedTemplates);
+      const params = { ...DEFAULT_PARAMS, ...(template && startingProportions(template)) };
+      return record(state, { ...state.design, params });
+    });
     get().invalidateAfter('design');
     get().syncDesignGate();
   },

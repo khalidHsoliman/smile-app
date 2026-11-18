@@ -27,7 +27,12 @@ const LABELS: Record<keyof FineTuneParams, { name: string; hint: string }> = {
   },
   redProportion: {
     name: 'Tooth proportion',
-    hint: 'Width of each tooth against its neighbour. 0.62 golden, 0.70 normal, 0.80 short face.',
+    // True for both kinds of template (see fitting.ts). The built-in ones draw
+    // the lateral at this share and the canine at its square; an imported one
+    // scales its own lateral onto this share and its canine by the square of
+    // the change -- held at the lateral's width if it would outgrow it, which
+    // is why the hint promises only that the canine moves with it.
+    hint: "Width of the upper lateral as a share of the central's. The canine narrows and widens with it.",
   },
   archWidth: {
     name: 'Arch width',

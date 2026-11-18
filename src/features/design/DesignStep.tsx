@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from '../../state/store.js';
 import { fitArches } from '../../domain/fitting.js';
 import { applyEdits } from '../../domain/toothEdits.js';
-import { getTemplate } from '../../domain/templates/buildTemplate.js';
+import { findTemplate } from '../../domain/templates/buildTemplate.js';
 import { sampleToothColor } from '../../vision/sampleToothColor.js';
 import { decodeForDetection } from '../../vision/faceLandmarker.js';
 import { TemplatePicker } from './TemplatePicker.js';
@@ -33,6 +33,7 @@ export function DesignStep() {
   const refs = useAppStore((s) => s.face.refs);
   const selectedTeeth = useAppStore((s) => s.selectedTeeth);
   const templateId = useAppStore((s) => s.design.templateId);
+  const importedTemplates = useAppStore((s) => s.importedTemplates);
   const params = useAppStore((s) => s.design.params);
   const teethOpacity = useAppStore((s) => s.design.teethOpacity);
   const setTeethOpacity = useAppStore((s) => s.setTeethOpacity);
@@ -49,7 +50,7 @@ export function DesignStep() {
   const setPalette = useAppStore((s) => s.setPalette);
   const pupilDistanceMm = useAppStore((s) => s.pupilDistanceMm);
 
-  const template = templateId ? getTemplate(templateId) : undefined;
+  const template = findTemplate(templateId, importedTemplates);
 
   /*
    * Sample the patient's enamel colour once per photo, so the design sits

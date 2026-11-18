@@ -80,8 +80,9 @@ older Node it stops with a message saying which version is needed. Node does not
 when it runs the tests -- `npm run typecheck` does, and it covers `test/`.
 
 The tests live in `test/`, mirroring `src/`, and cover code that imports no npm package:
-arch-run resolution, writing and reading case files (including broken, foreign, version 1 and
-newer files), building the saved case from the app state, download file names, the measurements
+arch-run resolution, writing and reading case files (including broken, foreign, version 1 and 2
+and newer files) and tooth template files, building the saved case from the app state and what an
+autosaved design opens with, download file names, the measurements
 CSV file, the question asked before opening a case, and the [measurements](#measurements) -- how
 each is worked out and worded, including the sides on a mirrored photograph and the cases that
 show "-". The store, the React components and the face detection import npm packages and are not
@@ -104,9 +105,12 @@ everything after it.
    opening on the smile photograph. The pupils, nasal wings, midline and lip line have handles
    that can be dragged to correct them; the mouth opening comes from detection only.
    **Re-detect** runs detection again.
-4. **Design.** Template teeth (**Natural** or **Hollywood**) fitted to the face, tuned with six
+4. **Design.** Template teeth (**Natural**, **Hollywood**, or a clinic's own -- see
+   [Tooth templates](#tooth-templates)) fitted to the face, tuned with six
    sliders -- Scale, Ratio, Tooth proportion, Smile curve, Occlusal gap and Arch width; Scale,
-   Occlusal gap and Smile curve start from values suggested by the mouth opening. Teeth can be
+   Occlusal gap and Smile curve start from values suggested by the mouth opening, Ratio and Tooth
+   proportion from the template chosen, and **Reset** returns to the defaults and the template's
+   starting values. Teeth can be
    adjusted one at a time, optionally mirrored to the matching tooth, and the whole design
    nudged. The tooth shade is sampled from the photograph or chosen by hand. Teeth opacity,
    clipping to the mouth and blending into the photograph change how the design is shown. Undo
@@ -122,6 +126,129 @@ everything after it.
    measurements as a CSV file for the lab (`jane-doe-measurements.csv`, see
    [The measurements file](#the-measurements-file)); **Export PDF** opens the browser's print
    dialog; the measurements are kept together on one page.
+
+## Tooth templates
+
+Two templates are built in: **Natural** and **Hollywood**. A clinic can use its own as well: export
+a template to a file, edit it, and import it.
+
+- **Export selected** (under the templates in the Design step) downloads the selected template. A
+  built-in one is written as a copy, named `Natural (copy)` in `natural-copy-template.json`, because
+  a built-in name is not accepted on import. An imported one keeps its name, so exporting it and
+  importing the file again gives back the same template. A template file holds no patient data.
+- **Import template…** reads a file, checks it in full, adds the template to the list with an
+  **Imported** label, and selects it. A file that cannot be used is refused whole, with the reason
+  under the buttons -- for example `teeth.12.outline is 0.759 wide, more than 10% off the tooth's
+  width of 0.66` -- and nothing changes. The message stays until **OK** or the next import or
+  export, so it can be read while the file is fixed.
+- **Imported templates belong to the open case**, not to the app. **New case** and **Open case**
+  replace them. The one the design uses is saved whole with the case, in the autosave and in the
+  case file, so the case opens with it on any computer; other imported templates the design does
+  not use are not saved.
+- **A template is its content.** Importing the same file again adds nothing. Any change -- a number,
+  a shape, the name -- makes it a different template, so editing a file afterwards never changes a
+  case designed with the earlier version. A different template under a name already in the case is
+  refused, as is a built-in name, whatever its capitals (`natural` too).
+
+### How the sliders act on a template
+
+**Ratio** and **Tooth proportion** work differently for the built-in templates and imported ones.
+Choosing a template, and **Reset**, put both sliders at that template's starting values; the other
+four sliders are about the face, not the teeth, and stay where they are. One **Undo** takes back a
+template and its sliders together. Clicking the template already selected changes nothing.
+**Tooth proportion** always reads as the upper lateral's width as a share of the central's, and the
+canine narrows and widens with it.
+
+**Natural and Hollywood** start at the published targets, 0.80 and 0.70, and the slider values *are*
+the proportions drawn:
+
+- **Ratio** is the central's width:length. Every tooth in an arch is lengthened or shortened by the
+  one factor that gives the central that ratio, so each keeps its length relative to the central.
+- **Tooth proportion** sets the lateral's width to that share of the central's, and the canine's to
+  that share of the lateral's: 0.70 gives 0.70 and 0.49. The templates' own lateral and canine
+  widths are not used.
+- Premolars and molars keep the template's widths, but are never drawn wider than the tooth in front.
+
+So Hollywood's squarer centrals (0.88) are drawn at 0.80 until Ratio is moved. This is how the two
+templates have always drawn, and saved cases open exactly as they were designed.
+
+**An imported template starts at its own proportions**, where every tooth is drawn exactly as the
+file has it: Ratio at the width:length of 11, and Tooth proportion at the width of 12 as a share of
+11's. Natural's shapes, imported, therefore start at 0.80 and **0.66**, and look different from the
+built-in Natural: laterals 0.66 and canines 0.58 wide, as the file says, rather than 0.70 and 0.49.
+From there:
+
+- **Ratio** works as for the built-in templates, from the template's own lengths. Both arches
+  follow 11, so lower teeth keep their lengths relative to the upper ones.
+- **Tooth proportion** scales the template's own lateral and canine widths: the laterals by the
+  slider's change from its starting value, the canines by that change squared, as the proportion
+  compounds from tooth to tooth. Each tooth's own width is scaled, so the lower teeth keep the
+  widths the file gives them against the lower centrals, however narrow those are.
+- A tooth is never drawn wider than the one in front, unless the file draws it wider. Raised far
+  enough, a canine grows faster than its lateral and stops at the lateral's width.
+
+The measurements panel reads the teeth as drawn, so it shows the template's own proportions until
+the sliders move.
+
+### The template file
+
+JSON, in this shape, with all 32 teeth keyed by their **FDI number** (11-18, 21-28, 31-38, 41-48):
+
+```json
+{
+  "format": "smile-design-template",
+  "version": 1,
+  "name": "Natural (copy)",
+  "description": "Softly rounded with a visible smile arc. The default for most cases.",
+  "teeth": {
+    "11": {
+      "width": 1,
+      "length": 1.25,
+      "incisalOffset": 0,
+      "outline": "M 0.49 0 C 0.4975 0.0249 0.5 0.2025 0.5 0.45 C ... Q 0 -0.07 0.49 0 Z"
+    },
+    "12": { ... },
+    ...
+    "48": { ... }
+  }
+}
+```
+
+**Units.** Everything is measured in **upper central incisor widths**: 11 and 21 are exactly 1 wide,
+and every other number is relative to that. The app scales the whole set to the face; a template
+holds proportions, not millimetres.
+
+**Each tooth is drawn in its own frame**: the origin is the middle of the biting edge, x runs
+toward the patient's left and y toward the gum. Lower teeth are drawn the same way, with y toward
+their gum; the app turns them over. Left and right teeth are separate entries and are not mirrored
+for you -- the built-in templates mirror their shapes, so an exported file shows how.
+
+- `width`, `length`: the tooth's width and its length from biting edge to gum. The app spaces the
+  teeth by `width` and reports sizes from both.
+- `incisalOffset`: how far this tooth's biting edge sits above the central's; positive means
+  shorter. It makes the gull-wing line of the smile -- Natural's laterals sit at 0.09.
+- `outline`: the tooth's shape as an SVG path.
+
+**What is checked** -- a file that fails any of these is refused:
+
+| What | Rule |
+|---|---|
+| File | JSON, at most 1 MB, with the marker `"format": "smile-design-template"` and `"version": 1` (a newer version asks for the app to be updated) |
+| `name` | 1-60 characters, no line breaks, tabs, other control characters or direction overrides; not a built-in name |
+| `description` | Up to 200 characters, same characters as the name; may be empty |
+| `teeth` | All 32 FDI numbers, and nothing else |
+| `width` | 0.2 to 2; **exactly 1 for 11 and 21** |
+| `length` | 0.3 to 3 |
+| `incisalOffset` | -1 to 1 |
+| 11 | Its width:length between 0.55 and 0.95, the Ratio slider's range, since Ratio starts there |
+| 12 | Its width between 0.55 and 0.85 of 11's, the Tooth proportion slider's range, since Tooth proportion starts there |
+| `outline` | One closed shape: starts with `M`, ends with `Z`, and uses only the absolute commands `M`, `L`, `C`, `Q` and `Z` -- no lowercase (relative) commands, `H`, `V`, `S`, `T` or `A`. At most 100 points and 10,000 characters; every coordinate within -10 to 10 |
+| The drawn outline | Within 10% of the numbers: its width against `width`, its height against `length`, its centre within 10% of `width` of x = 0, and its lowest point within 10% of `length` of the biting edge, y = 0 |
+
+Names and descriptions have spaces trimmed from their ends. Spaces and commas in an outline, and
+repeated numbers after a command, are accepted as SVG allows, and the outline is stored written out
+in full, as the built-in ones are. Fields the app does not know are ignored. Only 11 and 12 set where
+the sliders start; the left side may differ from the right and is drawn as the file has it.
 
 ## Measurements
 
@@ -237,7 +364,8 @@ without the date, and `patient` when there is no name.
 them (the uploaded file, or a PNG once it has been rotated), the patient and clinic names, the
 patient's pupil distance when one was entered, the selected teeth, the facial reference points,
 the photo alignment, and the design -- template, sliders, per-tooth adjustments, shade and display
-settings. Not included: undo history, zoom and the current step; the face frame and tooth
+settings. A built-in template (Natural, Hollywood) is saved by name; an imported one is saved
+whole, so the case opens on any computer. Not included: undo history, zoom and the current step; the face frame and tooth
 positions are recomputed from what is saved. The file is JSON with the photographs embedded as
 base64, and starts with a format marker, a format version and the time it was saved.
 
@@ -246,14 +374,20 @@ anything changes:
 
 - A file that is not a case file, is damaged or cut short, or was saved by a newer version of
   the app is refused with a message saying which, and the open case stays as it was. A pupil
-  distance that is not a number from 40 to 80 mm is damage like any other.
+  distance that is not a number from 40 to 80 mm is damage like any other, and so is a design
+  whose template is neither built in nor carried whole and unaltered in the file.
 - A good file leads to a question naming the patient and when the case was saved. Confirming
   replaces the open case, which then becomes the autosaved case; it opens on the Upload step,
   with the later steps unlocked as far as its saved work allows.
 
-The file records its format version. This version of the app writes version 2, which added the
-pupil distance, and refuses files with a newer version, asking for the app to be updated. Version
-1 files still open, with no pupil distance entered; saved again, they become version 2.
+The file records its format version. This version of the app writes version 3, which added
+imported templates (version 2 added the pupil distance), and refuses files with a newer version,
+asking for the app to be updated. Version 1 and 2 files still open -- version 1 with no pupil
+distance entered; saved again, they become version 3.
+
+The autosave is not refused like a file: if an autosaved design's imported template cannot be
+found, the case opens with Natural, its per-tooth adjustments cleared and the sliders kept, and a
+notice says so.
 
 ## Layout
 
@@ -263,7 +397,7 @@ src/
               runs, face frame, fitting, photo alignment, tooth edits, undo history,
               measurements
   state/      zustand store and cascade invalidation, workflow steps, autosave (IndexedDB),
-              case files
+              case files, tooth template files
   features/   one folder per workflow step, plus the tooth chart, zoom and pan, the demo case,
               the step navigation, the Save case / Open case buttons, and the measurements
               panel the Design step and the report share, with the pupil distance input.

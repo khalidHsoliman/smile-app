@@ -9,6 +9,8 @@ import {
   type CaseContent,
   type CaseFileProblem,
 } from '../../src/state/caseFile.js';
+import { getTemplate } from '../../src/domain/templates/buildTemplate.js';
+import { TEMPLATE_FILE_FORMAT, templateFromJson, templateToJson } from '../../src/state/templateFile.js';
 
 // --- fixtures ------------------------------------------------------------------
 
@@ -318,10 +320,10 @@ test('damage messages are meant for the user', async () => {
 
 // --- the pupil distance and version 1 files ---------------------------------------------
 
-test('this app writes version 2, the version that added the pupil distance', async () => {
-  assert.equal(CASE_FILE_VERSION, 2);
+test('this app writes version 3, with the pupil distance version 2 added', async () => {
+  assert.equal(CASE_FILE_VERSION, 3);
   const json = JSON.parse(await (await writeCaseFile(fullCase(), SAVED_AT)).text());
-  assert.equal(json.version, 2);
+  assert.equal(json.version, 3);
   assert.equal(json.case.pupilDistanceMm, 63.5);
 });
 
@@ -354,10 +356,10 @@ test('a version 1 file opens whole, with no pupil distance', async () => {
   );
 });
 
-test('a version 1 file opened and saved again becomes version 2, still with no distance', async () => {
+test('a version 1 file opened and saved again becomes version 3, still with no distance', async () => {
   const opened = await readCaseFile(await versionOneFile());
   const json = JSON.parse(await (await writeCaseFile(opened.content, SAVED_AT)).text());
-  assert.equal(json.version, 2);
+  assert.equal(json.version, 3);
   assert.equal(json.case.pupilDistanceMm, null);
 });
 
@@ -396,4 +398,170 @@ test('a pupil distance a file cannot carry is refused on saving, not written', a
         e instanceof CaseFileError && e.problem === 'cannot-save' && e.message.includes('case.pupilDistanceMm'),
     );
   }
+});
+
+// --- imported templates (version 3) ---------------------------------------------------
+
+/** A clinic's own template: Natural's shapes under a name of its own. */
+const clinicTemplate = () => templateFromJson({ ...templateToJson(getTemplate('natural')!), name: 'Clinic A' });
+
+/** The full case, designed with the clinic's template. */
+function importedCase(): CaseContent {
+  const template = clinicTemplate();
+  return { ...fullCase(), design: { ...fullCase().design, templateId: template.id, template } };
+}
+
+/** A valid saved file of `importedCase`, parsed, changed by `mutate`, and turned back into a file. */
+async function alteredImportedFile(mutate: (json: any) => void): Promise<Blob> {
+  const json = JSON.parse(await (await writeCaseFile(importedCase(), SAVED_AT)).text());
+  mutate(json);
+  return new Blob([JSON.stringify(json, null, 2)]);
+}
+
+test('a case with an imported template comes back with that template, exactly', async () => {
+  const opened = await readCaseFile(await writeCaseFile(importedCase(), SAVED_AT));
+  assert.deepEqual(await comparable(opened.content), await comparable(importedCase()));
+  assert.equal(opened.content.design.template!.name, 'Clinic A');
+  assert.equal(opened.content.design.template!.id, opened.content.design.templateId);
+});
+
+test('the file carries an imported template as template file JSON, photos still last', async () => {
+  const json = JSON.parse(await (await writeCaseFile(importedCase(), SAVED_AT)).text());
+  const carried = json.case.design.template;
+  assert.equal(carried.format, TEMPLATE_FILE_FORMAT);
+  assert.equal(carried.name, 'Clinic A');
+  assert.equal(Object.keys(carried.teeth).length, 32);
+  assert.ok('11' in carried.teeth);
+  // No id in the carried template: it is worked out from the content.
+  assert.ok(!('id' in carried));
+  assert.equal(json.case.design.templateId, clinicTemplate().id);
+  assert.equal(Object.keys(json.case).at(-1), 'photos');
+});
+
+test('a case with a built-in template carries no template, only its id', async () => {
+  for (const templateId of ['natural', 'hollywood', null]) {
+    const content: CaseContent = { ...fullCase(), design: { ...fullCase().design, templateId } };
+    const json = JSON.parse(await (await writeCaseFile(content, SAVED_AT)).text());
+    assert.ok(!('template' in json.case.design), String(templateId));
+    const opened = await readCaseFile(new Blob([JSON.stringify(json)]));
+    assert.ok(!('template' in opened.content.design));
+    assert.equal(opened.content.design.templateId, templateId);
+  }
+});
+
+/** A file as version 2 of the app wrote it: version 2, built-in templates only. */
+const versionTwoFile = (mutate: (json: any) => void = () => {}) =>
+  alteredFile((json) => {
+    json.version = 2;
+    mutate(json);
+  });
+
+test('a version 2 file opens whole, on its built-in template', async () => {
+  const opened = await readCaseFile(await versionTwoFile());
+  assert.deepEqual(await comparable(opened.content), await comparable(fullCase()));
+  assert.ok(!('template' in opened.content.design));
+});
+
+test('a version 2 file opened and saved again becomes version 3', async () => {
+  const opened = await readCaseFile(await versionTwoFile((json) => { json.case.design.templateId = 'hollywood'; }));
+  const json = JSON.parse(await (await writeCaseFile(opened.content, SAVED_AT)).text());
+  assert.equal(json.version, 3);
+  assert.equal(json.case.design.templateId, 'hollywood');
+  assert.ok(!('template' in json.case.design));
+});
+
+test('a template in a version 2 file is not the app\'s, and is dropped like any unknown field', async () => {
+  const carried = templateToJson(clinicTemplate());
+  // Beside a built-in template it is simply dropped...
+  const opened = await readCaseFile(await versionTwoFile((json) => { json.case.design.template = carried; }));
+  assert.equal(opened.content.design.templateId, 'natural');
+  assert.ok(!('template' in opened.content.design));
+  // ...and it cannot make a version 2 design naming another template open.
+  await assertRefused(
+    await versionTwoFile((json) => {
+      json.case.design.templateId = clinicTemplate().id;
+      json.case.design.template = carried;
+    }),
+    'damaged',
+    'case.design.templateId',
+  );
+});
+
+test('a version 2 or version 1 file naming an unknown template is damaged', async () => {
+  await assertRefused(
+    await versionTwoFile((json) => { json.case.design.templateId = 'porcelain'; }),
+    'damaged',
+    'case.design.templateId is "porcelain", which is not a built-in template, and the case does not carry that template',
+  );
+  await assertRefused(
+    await versionOneFile((json) => { json.case.design.templateId = 'porcelain'; }),
+    'damaged',
+    'case.design.templateId',
+  );
+});
+
+const templateRefusals: [string, (json: any) => void, string][] = [
+  ['an unknown template, not carried', (j) => {
+    j.case.design.templateId = 'porcelain';
+    delete j.case.design.template;
+  }, 'case.design.templateId is "porcelain", which is not a built-in template'],
+  ['an imported template, not carried', (j) => { delete j.case.design.template; }, 'the case does not carry that template'],
+  ['a carried template beside a built-in one', (j) => { j.case.design.templateId = 'natural'; }, 'case.design.template is there, but the design does not use an imported template'],
+  ['a carried template and no template chosen', (j) => { j.case.design.templateId = null; }, 'case.design.template is there'],
+  ['a carried template that is not an object', (j) => { j.case.design.template = 'Clinic A'; }, 'case.design.template is not a usable template: is not a tooth template'],
+  ['a carried template without its marker', (j) => { delete j.case.design.template.format; }, 'case.design.template is not a usable template: is not a tooth template'],
+  ['a carried template missing a tooth', (j) => { delete j.case.design.template.teeth['23']; }, 'case.design.template is not a usable template: teeth.23 is missing'],
+  ['a carried template with a bad outline', (j) => { j.case.design.template.teeth['12'].outline = 'M 0 0 l 1 1 Z'; }, 'teeth.12.outline uses "l"'],
+  ['a carried template with a built-in name', (j) => { j.case.design.template.name = 'Natural'; }, 'is the name of a built-in template'],
+  ['a carried template from a newer template format', (j) => { j.case.design.template.version = 2; }, 'is template file version 2, newer than this app reads'],
+  ['a carried template edited inside the case file', (j) => { j.case.design.template.teeth['12'].incisalOffset = 0.1; }, `case.design.template is not the template the design names ("${clinicTemplate().id}")`],
+  ['a carried template renamed inside the case file', (j) => { j.case.design.template.name = 'Clinic B'; }, 'is not the template the design names'],
+  ['a carried template swapped for another', (j) => {
+    j.case.design.template = templateToJson(templateFromJson({ ...templateToJson(getTemplate('hollywood')!), name: 'Clinic A' }));
+  }, 'is not the template the design names'],
+];
+
+for (const [what, mutate, mention] of templateRefusals) {
+  test(`refused as damaged: ${what}`, async () => {
+    await assertRefused(await alteredImportedFile(mutate), 'damaged', mention);
+  });
+}
+
+test('a damaged template reads as one sentence', async () => {
+  await assert.rejects(
+    readCaseFile(await alteredImportedFile((j) => { delete j.case.design.template.teeth['23']; })),
+    {
+      message:
+        'This case file is damaged and cannot be opened (case.design.template is not a usable template: ' +
+        'teeth.23 is missing: a template needs all 32 teeth).',
+    },
+  );
+});
+
+test('the app will not write a case whose template it could not open again', async () => {
+  const cannotSave = (mention: string) => (e: unknown) =>
+    e instanceof CaseFileError && e.problem === 'cannot-save' && e.message.includes(mention);
+
+  // An imported template named, but not there to carry.
+  const { template: _template, ...withoutTemplate } = importedCase().design;
+  await assert.rejects(
+    writeCaseFile({ ...importedCase(), design: withoutTemplate }, SAVED_AT),
+    cannotSave('the case does not carry that template'),
+  );
+  // A template carried, but not the one named.
+  await assert.rejects(
+    writeCaseFile({ ...importedCase(), design: { ...importedCase().design, templateId: 'custom-0000000000000000' } }, SAVED_AT),
+    cannotSave('is not the template the design names'),
+  );
+  // A template carried beside a built-in one.
+  await assert.rejects(
+    writeCaseFile({ ...importedCase(), design: { ...importedCase().design, templateId: 'natural' } }, SAVED_AT),
+    cannotSave('case.design.template is there'),
+  );
+  // A carried template a file could not hold.
+  const { 8: _central, ...teeth } = clinicTemplate().teeth;
+  await assert.rejects(
+    writeCaseFile({ ...importedCase(), design: { ...importedCase().design, template: { ...clinicTemplate(), teeth } } }, SAVED_AT),
+    cannotSave('case.design.template teeth.11 is missing'),
+  );
 });

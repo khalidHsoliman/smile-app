@@ -6,6 +6,7 @@ import {
   measurementsFileName,
   patientSlug,
   reportImageFileName,
+  templateFileName,
 } from '../../src/export/fileNames.js';
 
 const utf8 = (s: string) => new TextEncoder().encode(s).length;
@@ -114,4 +115,14 @@ test('measurements file: named like the report images, ending in .csv', () => {
 test('the local day, as case files and the measurements file write it', () => {
   assert.equal(localDay(new Date(2025, 10, 14, 23, 59)), '2025-11-14');
   assert.equal(localDay(new Date(2026, 0, 5, 0, 0)), '2026-01-05');
+});
+
+test('a template file is named after the template it holds', () => {
+  assert.equal(templateFileName('Natural (copy)'), 'natural-copy-template.json');
+  assert.equal(templateFileName('Clinic A'), 'clinic-a-template.json');
+  assert.equal(templateFileName('Clínica Müller'), 'clínica-müller-template.json');
+  assert.equal(templateFileName('عيادة'), 'عيادة-template.json');
+  assert.equal(templateFileName('A/B: C?'), 'a-b-c-template.json');
+  assert.equal(templateFileName('***'), 'template.json');
+  assert.equal(templateFileName('x'.repeat(60)), `${'x'.repeat(60)}-template.json`);
 });

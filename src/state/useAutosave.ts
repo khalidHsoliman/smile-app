@@ -133,6 +133,16 @@ export function useAutosave() {
      * the writes match the meaning of "saved".
      */
     let previous = fingerprint(useAppStore.getState());
+
+    /*
+     * The baseline above is the case as restored, which is normally what is
+     * stored. Not when the restore had to change it -- an autosaved design
+     * whose template could not be found opens on Natural without its edits --
+     * so that is written back once, or the stored case would go on disagreeing
+     * with the screen and the notice would return on every reload.
+     */
+    if (useAppStore.getState().templateNotice !== null) schedule();
+
     const unsubscribe = useAppStore.subscribe((state) => {
       const next = fingerprint(state);
       if (next === previous) return;
